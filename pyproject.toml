@@ -4,4 +4,11 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.9",
+    "mido>=1.3.3",
+    "python-dotenv>=1.2.2",
+    "torch>=2.12.0",
+    "tqdm>=4.67.3",
+]

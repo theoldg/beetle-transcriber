@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+.env
+*.ipynb
+
+# I'll add it later
+uv.lock
