@@ -69,6 +69,9 @@ class Channel:
     VELOCITY = 3
 
 
+NUM_CHANNELS = 4
+
+
 def _normalize_sample(
     data: torch.Tensor,
     config: MidiPreprocessingConfig,
@@ -96,17 +99,18 @@ def preprocess_midi(
     
     num_time_steps = math.ceil(duration / config.time_resolution)
     num_notes = config.max_note - config.min_note
-    num_channels = 4
 
     data = torch.zeros(
-        (num_time_steps, num_notes, num_channels),
+        (num_time_steps, num_notes, NUM_CHANNELS),
         dtype=torch.float32,
     )
 
     for note in notes:
         time_step = round(note.start_time / config.time_resolution)
         offset = note.start_time - time_step * config.time_resolution
-        data_point = data[time_step, note.note - config.min_note]
+        note_shifted = note.note - config.min_note
+
+        data_point = data[time_step, note_shifted]
         data_point[Channel.CONFIDENCE] = 1.
         data_point[Channel.OFFSET] = offset
         data_point[Channel.DURATION] = note.end_time - note.start_time
