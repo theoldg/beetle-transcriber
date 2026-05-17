@@ -66,11 +66,11 @@ class ConvLayer(nn.Module):
     def forward(
         self,
         input: Tensor,
-        residual_input: Tensor | None = None,
+        skip_input: Tensor | None = None,
     ) -> Tensor:
         """Input shape: (batch, channels, time)."""
-        if residual_input is not None:
-            input = torch.concat([input, residual_input], dim=1)
+        if skip_input is not None:
+            input = torch.concat([input, skip_input], dim=1)
         result = self.block(input)
         return result
 
@@ -85,31 +85,24 @@ class UpLayer(nn.Module):
         self.factor = upsample_factor
         self.conv_layer = ConvLayer(conv_config)
 
-    def upsample(self, x: Tensor) -> Tensor:
-        batch, channels, time = x.shape
-        result = torch.zeros(
-            (batch, channels, time * self.factor),
-            dtype=x.dtype,
-        )
-        result[:, :, ::2] = x
-        result[:, :, 1::2] = x
-        return result
-
     def forward(
         self,
         x: Tensor,
-        residual_input: Tensor | None = None,
+        skip_input: Tensor | None = None,
     ) -> Tensor:
-        x = self.upsample(x)
-        x = self.conv_layer(x, residual_input)
+        x = torch.repeat_interleave(x, self.factor, dim=2)
+        x = self.conv_layer(x, skip_input)
         return x
 
 
 class UNetV1(nn.Module):
     def __init__(
         self,
+        midi_config: midi.MidiPreprocessingConfig,
     ):
         super().__init__()
+        self.midi_config = midi_config
+
         self.down_layers = nn.ModuleList(
             [
                 ConvLayer(
@@ -150,7 +143,7 @@ class UNetV1(nn.Module):
                     conv_config=ConvLayerConfig(
                         input_channels=192,
                         expanded_channels=96,
-                        out_channels=64,
+                        out_channels=128,
                         kernel=1,
                         stride=1,
                     ),
@@ -158,15 +151,31 @@ class UNetV1(nn.Module):
             ]
         )
 
+        num_notes = midi_config.max_note - midi_config.min_note
+
+        self.last_layer = ConvLayer(ConvLayerConfig(
+            input_channels=128,
+            out_channels=num_notes * midi.NUM_CHANNELS,
+            expanded_channels=256,
+            kernel=1,
+            stride=1,
+        ))
+
     def forward(self, spectrogram: Tensor) -> Tensor:
         x = spectrogram
-        residuals = []
+        skip_inputs = []
         for layer in self.down_layers:
-            residuals.append(x)
+            skip_inputs.append(x)
             x = layer(x)
 
         for i, layer in enumerate(self.up_layers):
-            residual = residuals[-i - 1]
-            x = layer(x, residual)
+            skip_input = skip_inputs[-i - 1]
+            x = layer(x, skip_input)
+
+        x = self.last_layer(x)
+
+        x = torch.transpose(x, 1, 2)
+        batch, time, channels_notes = x.shape
+        x = x.reshape(batch, time, -1, midi.NUM_CHANNELS)
 
         return x
