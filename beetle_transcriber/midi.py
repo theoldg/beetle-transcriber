@@ -106,7 +106,7 @@ def preprocess_midi(
     for note in notes:
         time_step = round(note.start_time / config.time_resolution)
         offset = note.start_time - time_step * config.time_resolution
-        data_point = data[time_step, note.note]
+        data_point = data[time_step, note.note - config.min_note]
         data_point[Channel.CONFIDENCE] = 1.
         data_point[Channel.OFFSET] = offset
         data_point[Channel.DURATION] = note.end_time - note.start_time
