@@ -90,8 +90,8 @@ class UpLayer(nn.Module):
         x: Tensor,
         skip_input: Tensor | None = None,
     ) -> Tensor:
-        x = torch.repeat_interleave(x, self.factor, dim=2)
         x = self.conv_layer(x, skip_input)
+        x = torch.repeat_interleave(x, self.factor, dim=2)
         return x
 
 
@@ -108,17 +108,35 @@ class UNetV1(nn.Module):
                 ConvLayer(
                     ConvLayerConfig(
                         input_channels=128,
-                        expanded_channels=128,
-                        out_channels=64,
-                        kernel=4,
+                        expanded_channels=256,
+                        out_channels=128,
+                        kernel=5,
                         stride=2,
                     )
                 ),
                 ConvLayer(
                     ConvLayerConfig(
-                        input_channels=64,
-                        expanded_channels=128,
-                        out_channels=96,
+                        input_channels=128,
+                        expanded_channels=256,
+                        out_channels=256,
+                        kernel=5,
+                        stride=2,
+                    )
+                ),
+                ConvLayer(
+                    ConvLayerConfig(
+                        input_channels=256,
+                        expanded_channels=256,
+                        out_channels=256,
+                        kernel=3,
+                        stride=2,
+                    )
+                ),
+                ConvLayer(
+                    ConvLayerConfig(
+                        input_channels=256,
+                        expanded_channels=512,
+                        out_channels=512,
                         kernel=3,
                         stride=2,
                     )
@@ -126,14 +144,24 @@ class UNetV1(nn.Module):
             ]
         )
 
+        self.middle_layer = ConvLayer(
+            ConvLayerConfig(
+                input_channels=512,
+                expanded_channels=512,
+                out_channels=512,
+                kernel=3,
+                stride=1,
+            )
+        )
+
         self.up_layers = nn.ModuleList(
             [
                 UpLayer(
                     upsample_factor=2,
                     conv_config=ConvLayerConfig(
-                        input_channels=160,
-                        expanded_channels=96,
-                        out_channels=64,
+                        input_channels=1024,
+                        expanded_channels=1024,
+                        out_channels=512,
                         kernel=1,
                         stride=1,
                     ),
@@ -141,8 +169,28 @@ class UNetV1(nn.Module):
                 UpLayer(
                     upsample_factor=2,
                     conv_config=ConvLayerConfig(
-                        input_channels=192,
-                        expanded_channels=96,
+                        input_channels=768,
+                        expanded_channels=768,
+                        out_channels=512,
+                        kernel=1,
+                        stride=1,
+                    ),
+                ),
+                UpLayer(
+                    upsample_factor=2,
+                    conv_config=ConvLayerConfig(
+                        input_channels=768,
+                        expanded_channels=512,
+                        out_channels=256,
+                        kernel=1,
+                        stride=1,
+                    ),
+                ),
+                UpLayer(
+                    upsample_factor=2,
+                    conv_config=ConvLayerConfig(
+                        input_channels=384,
+                        expanded_channels=256,
                         out_channels=128,
                         kernel=1,
                         stride=1,
@@ -162,11 +210,18 @@ class UNetV1(nn.Module):
         )
 
     def forward(self, spectrograms: Tensor) -> Tensor:
+        divisibility_contraint = 2 ** len(self.up_layers)
+        assert (
+            spectrograms.shape[-1] % divisibility_contraint == 0
+        ), f"For this number of layers, the time axis must be divisible by {divisibility_contraint}"
+
         x = spectrograms
         skip_inputs = []
         for layer in self.down_layers:
-            skip_inputs.append(x)
             x = layer(x)
+            skip_inputs.append(x)
+
+        x = self.middle_layer(x)
 
         for i, layer in enumerate(self.up_layers):
             skip_input = skip_inputs[-i - 1]
