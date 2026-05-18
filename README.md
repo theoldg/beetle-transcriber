@@ -6,7 +6,6 @@ In this project I attempt to create an audio-to-MIDI ML model for music transcri
 
 We use the [Maestro V3](https://magenta.withgoogle.com/datasets/maestro) dataset.
 
-
 ## MIDI preprocessing
 
 The MIDI is preprocessed into a "ML friendly" format as follows. First, a time resolution is chosen (e.g. 50 ms).
@@ -24,3 +23,14 @@ be written at index `[200, 60]` as `[1, 0.003, 0.5, 57]` (pre-normalization), be
 - `57` is the velocity.
 
 These values are then normalized, check the code for details.
+
+## Audio preprocessing
+
+Audio is preprocessed as a log-mel spectrogram.
+
+## Model
+
+A 1d UNet / MobileNet-ish custom job. Mel bins are treated as channels. The output is reshaped from `(..., time, D)`
+into `(..., time, notes, channels)`.
+
+
