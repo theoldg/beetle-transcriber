@@ -34,14 +34,21 @@ class Note:
     end_time: float
 
 
-def _find_notes(file: mido.MidiFile) -> list[Note]:
+def _find_notes(
+    file: mido.MidiFile,
+    start_time: float,
+    duration: float,
+) -> list[Note]:
     note_map = {}
-    notes = []
+    notes: list[Note] = []
     time = 0
     for message in file:
         if hasattr(message, 'time'):
             time += message.time
+            if time > start_time + duration:
+                break
         if message.type != 'note_on':
+            # Notes off are annotated as "note_on" with velocity 0.
             continue
         if message.velocity != 0:
             # Note start.
@@ -59,7 +66,18 @@ def _find_notes(file: mido.MidiFile) -> list[Note]:
                 start_time=start_time,
                 end_time=time,
             ))
-    return notes
+    
+    filtered_notes = []
+    for note in notes:
+        if note.start_time < start_time:
+            continue
+        if note.start_time >= start_time + duration:
+            break
+        note.start_time -= start_time
+        note.end_time -= start_time
+        note.end_time = min(note.end_time, duration)
+
+    return filtered_notes
 
 
 class Channel:
@@ -89,13 +107,11 @@ def _normalize_sample(
 def preprocess_midi(
     path: Path,
     config: MidiPreprocessingConfig,
-    duration: float | None = None,
+    start_time: float,
+    duration: float,
 ) -> torch.Tensor:
     file = mido.MidiFile(path)
-    notes = _find_notes(file)
-
-    if duration is None:
-        duration = notes[-1].end_time
+    notes = _find_notes(file, start_time=start_time, duration=duration)
     
     num_time_steps = math.ceil(duration / config.time_resolution)
     num_notes = config.max_note - config.min_note

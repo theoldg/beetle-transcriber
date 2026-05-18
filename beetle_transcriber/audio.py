@@ -1,4 +1,5 @@
 import dataclasses
+from pathlib import Path
 
 import soundfile as sf
 import torch
@@ -20,21 +21,14 @@ class MelSpectrogramConfig:
     f_max: float = 16_000.0
 
 
-def get_audio_duration_sec(file_path: str) -> float:
-    """Returns the total duration of a WAV file in seconds without loading it."""
-    info = sf.info(file_path)
-    return info.duration
-
-
 def load_audio_segment(
-    file_path: str,
+    file_path: Path,
     start_sec: float,
     duration_sec: float,
-    expected_samplerate: int,
+    samplerate: int,
 ) -> torch.Tensor:
     """Seeks and loads a segment of a WAV file directly from disk."""
     info = sf.info(file_path)
-    assert expected_samplerate == info.samplerate
     start_frame = int(start_sec * info.samplerate)
     num_frames = int(duration_sec * info.samplerate)
     data, _ = sf.read(
@@ -45,8 +39,9 @@ def load_audio_segment(
         always_2d=True,
     )
     data = data.mean(-1)
-    waveform = torch.from_numpy(data).t()
-    return waveform
+    data = torch.from_numpy(data)
+    data = T.Resample(orig_freq=info.samplerate, new_freq=samplerate)(data)
+    return data
 
 
 def create_log_mel_spectrogram(
