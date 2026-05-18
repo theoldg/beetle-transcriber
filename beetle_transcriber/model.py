@@ -151,14 +151,15 @@ class UNetV1(nn.Module):
             ]
         )
 
-
-        self.last_layer = ConvLayer(ConvLayerConfig(
-            input_channels=128,
-            out_channels=self.num_notes * midi.NUM_CHANNELS,
-            expanded_channels=256,
-            kernel=1,
-            stride=1,
-        ))
+        self.last_layer = ConvLayer(
+            ConvLayerConfig(
+                input_channels=128,
+                out_channels=self.num_notes * midi.NUM_CHANNELS,
+                expanded_channels=256,
+                kernel=1,
+                stride=1,
+            )
+        )
 
     def forward(self, spectrograms: Tensor) -> Tensor:
         x = spectrograms
