@@ -12,7 +12,8 @@ from beetle_transcriber import dataset
 @dataclass
 class LossConfig:
     cross_entropy_weight: float = 1
-    empty_weight: float = 3
+    # Chosen by fair dice roll, guaranteed to be random.
+    empty_weight: float = 15
 
     offset_pow: float = 2
     offset_weight: float = 1
@@ -62,7 +63,7 @@ class Loss(nn.Module):
         # Binary cross-entropy for non-notes.
         bce_empty = nn.functional.binary_cross_entropy_with_logits(
             input=model_out[~is_note][:, Channel.CONFIDENCE],
-            target=torch.zeros((~is_note).sum(), device=model_out.device),
+            target=torch.zeros((~is_note).sum(), device=model_out.device),  # type: ignore
             reduction="none",
         )
         loss[~is_note] += (
@@ -82,7 +83,7 @@ class Loss(nn.Module):
         # Binary cross-entropy for notes.
         bce_note = nn.functional.binary_cross_entropy_with_logits(
             input=model_out[is_note][:, Channel.CONFIDENCE],
-            target=torch.ones(is_note.sum(), device=model_out.device),
+            target=torch.ones(is_note.sum(), device=model_out.device),  # type: ignore
             reduction="none",
         )
         loss[is_note] += self.config.cross_entropy_weight * bce_note
