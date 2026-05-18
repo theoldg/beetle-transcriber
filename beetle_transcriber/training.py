@@ -30,7 +30,7 @@ class Loss(nn.Module):
 
     def forward(self, model_out: Tensor, ground_truth: Tensor) -> Tensor:
         batch, time, note, channels = model_out.shape
-        loss = torch.zeros(batch, time, note)
+        loss = torch.zeros(batch, time, note, device=model_out.device)
 
         is_note = ground_truth[:, :, :, Channel.CONFIDENCE] == 1        
 
@@ -39,15 +39,15 @@ class Loss(nn.Module):
             self.config.cross_entropy_weight
             * nn.functional.binary_cross_entropy_with_logits(
                 input=model_out[~is_note][:, Channel.CONFIDENCE],
-                target=torch.zeros((~is_note).sum()),
+                target=torch.zeros((~is_note).sum(), device=model_out.device),
                 reduction='none',
             )
         )
 
         if not is_note.any():
-            # This can happen occationally but shouldn't be more than e.g. 10% of the time.
-            # TODO: remove when confident that this is not an issue.
-            print('Weird: segment with zero notes')
+            # TODO: This can conceivably happen but should be extremely rare.
+            # Delete once training is up and running and it happens never or once in a while.
+            print('Weird: entire batch with zero notes.')
             return loss[~is_note].mean()
         
         # Binary cross-entropy for notes.
@@ -55,7 +55,7 @@ class Loss(nn.Module):
             self.config.cross_entropy_weight
             * nn.functional.binary_cross_entropy_with_logits(
                 input=model_out[is_note][:, Channel.CONFIDENCE],
-                target=torch.ones(is_note.sum()),
+                target=torch.ones(is_note.sum(), device=model_out.device),
                 reduction='none',
             )
         )
@@ -83,11 +83,13 @@ class Loss(nn.Module):
         )
 
         note_means = (loss * is_note).sum(-1).sum(-1) / is_note.sum(-1).sum(-1)
+        note_means[torch.isnan(note_means)] = 0
         empty_means = (loss * ~is_note).sum(-1).sum(-1) / (~is_note).sum(-1).sum(-1)
+
         return (note_means + empty_means).mean()
 
 
-class Trainer(pl.LightningModule):
+class Learner(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
@@ -99,11 +101,14 @@ class Trainer(pl.LightningModule):
 
     def training_step(self, batch: dataset.Batch, _):
         model_out = self.model(batch.spectrograms)
+        if torch.isnan(model_out).any():
+            raise RuntimeError('NaN model outputs.')
         loss = self.loss(model_out, batch.midi_data)
-        self.log("train_loss", loss)
+        if torch.isnan(loss).any():
+            raise RuntimeError('NaN loss.')
+        self.log("train_loss", loss, prog_bar=True, on_step=True)
         return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=1e-3)
         return optimizer
-

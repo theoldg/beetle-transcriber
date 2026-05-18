@@ -14,3 +14,5 @@ wheels/
 
 # I'll add it later
 uv.lock
+
+lightning_logs/

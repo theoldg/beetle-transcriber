@@ -60,4 +60,6 @@ def create_log_mel_spectrogram(
     amplitude_to_db = T.AmplitudeToDB(stype="power")
     mel_spec = mel_transform(waveform)
     log_mel_spec = amplitude_to_db(mel_spec)
+    log_mel_spec -= log_mel_spec.mean()
+    log_mel_spec /= log_mel_spec.std()
     return log_mel_spec

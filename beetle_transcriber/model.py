@@ -160,8 +160,8 @@ class UNetV1(nn.Module):
             stride=1,
         ))
 
-    def forward(self, spectrogram: Tensor) -> Tensor:
-        x = spectrogram
+    def forward(self, spectrograms: Tensor) -> Tensor:
+        x = spectrograms
         skip_inputs = []
         for layer in self.down_layers:
             skip_inputs.append(x)
