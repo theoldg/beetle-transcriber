@@ -17,7 +17,7 @@ class MidiPreprocessingConfig:
     # Lowest note on the piano (inclusive).
     min_note: int = 21
 
-    # Highest note on the piano (exclusivve).
+    # Highest note on the piano (exclusive).
     max_note: int = 109
 
 
@@ -35,10 +35,12 @@ class Note:
 
 
 def _find_notes(
-    file: mido.MidiFile,
+    path: Path,
     start_time: float,
     duration: float,
 ) -> list[Note]:
+    file = mido.MidiFile(path)
+    
     note_map = {}
     notes: list[Note] = []
     time = 0
@@ -51,12 +53,19 @@ def _find_notes(
         if message.velocity != 0:
             # Note start.
             if message.note in note_map:
-                raise ValueError(f'Note started twice: {message}')
+                # Repeated start: just end the previous note.
+                start_message, note_start_time = note_map.pop(message.note)
+                notes.append(Note(
+                    note=message.note,
+                    velocity=start_message.velocity,
+                    start_time=note_start_time,
+                    end_time=time,
+                ))
             note_map[message.note] = message, time
         else:
             # Note end.
             if message.note not in note_map:
-                raise ValueError(f'Ended note that had not started: {message}')
+                continue
             start_message, note_start_time = note_map.pop(message.note)
             notes.append(Note(
                 note=message.note,
@@ -109,8 +118,7 @@ def preprocess_midi(
     start_time: float,
     duration: float,
 ) -> torch.Tensor:
-    file = mido.MidiFile(path)
-    notes = _find_notes(file, start_time=start_time, duration=duration)
+    notes = _find_notes(path, start_time=start_time, duration=duration)
     
     num_time_steps = math.ceil(duration / config.time_resolution)
     num_notes = config.max_note - config.min_note
@@ -122,8 +130,11 @@ def preprocess_midi(
 
     for note in notes:
         time_step = round(note.start_time / config.time_resolution)
+        if time_step == num_time_steps:
+            continue
         offset = note.start_time - time_step * config.time_resolution
         note_shifted = note.note - config.min_note
+        assert note_shifted >= 0
 
         data_point = data[time_step, note_shifted]
         data_point[Channel.CONFIDENCE] = 1.
