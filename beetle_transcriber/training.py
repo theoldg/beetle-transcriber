@@ -12,7 +12,7 @@ from beetle_transcriber import dataset
 @dataclass
 class LossConfig:
     cross_entropy_weight: float = 1
-    empty_weight: float = 10
+    empty_weight: float = 3
 
     offset_pow: float = 2
     offset_weight: float = 1
@@ -42,7 +42,7 @@ class Loss(nn.Module):
         ground_truth: Tensor,
     ) -> dict[str, float | Tensor]:
         is_note = ground_truth[:, :, :, Channel.CONFIDENCE] == 1
-        is_note_model = model_out[..., Channel.CONFIDENCE] >= 0.5
+        is_note_model = model_out[..., Channel.CONFIDENCE] >= 0
         precision = (is_note_model & is_note).sum() / is_note_model.sum()
         recall = (is_note_model & is_note).sum() / is_note.sum()
         f1_score = 2 * precision * recall / (precision + recall)

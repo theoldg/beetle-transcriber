@@ -15,6 +15,7 @@ class ConvLayerConfig:
     out_channels: int
     kernel: int
     stride: int
+    normalize: bool = True
 
 
 class ConvLayer(nn.Module):
@@ -55,7 +56,7 @@ class ConvLayer(nn.Module):
                 config.expanded_channels,
                 config.out_channels,
                 kernel_size=1,
-                norm_layer=nn.BatchNorm1d,
+                norm_layer=nn.BatchNorm1d if self.config.normalize else torch.nn.Identity,
                 activation_layer=None,
                 conv_layer=nn.Conv1d,
             )
@@ -162,7 +163,7 @@ class UNetV1(nn.Module):
                         input_channels=1024,
                         expanded_channels=1024,
                         out_channels=512,
-                        kernel=1,
+                        kernel=5,
                         stride=1,
                     ),
                 ),
@@ -172,7 +173,7 @@ class UNetV1(nn.Module):
                         input_channels=768,
                         expanded_channels=768,
                         out_channels=512,
-                        kernel=1,
+                        kernel=5,
                         stride=1,
                     ),
                 ),
@@ -182,7 +183,7 @@ class UNetV1(nn.Module):
                         input_channels=768,
                         expanded_channels=512,
                         out_channels=256,
-                        kernel=1,
+                        kernel=5,
                         stride=1,
                     ),
                 ),
@@ -192,7 +193,7 @@ class UNetV1(nn.Module):
                         input_channels=384,
                         expanded_channels=256,
                         out_channels=128,
-                        kernel=1,
+                        kernel=5,
                         stride=1,
                     ),
                 ),
@@ -201,11 +202,12 @@ class UNetV1(nn.Module):
 
         self.last_layer = ConvLayer(
             ConvLayerConfig(
-                input_channels=128,
+                input_channels=256,
+                expanded_channels=512,
                 out_channels=self.num_notes * midi.NUM_CHANNELS,
-                expanded_channels=256,
-                kernel=1,
+                kernel=5,
                 stride=1,
+                normalize=False,
             )
         )
 
@@ -227,7 +229,7 @@ class UNetV1(nn.Module):
             skip_input = skip_inputs[-i - 1]
             x = layer(x, skip_input)
 
-        x = self.last_layer(x)
+        x = self.last_layer(x, spectrograms)
 
         x = torch.transpose(x, 1, 2)
         batch, time, channels_notes = x.shape
