@@ -3,9 +3,10 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 from torch import nn
+import lightning as pl
 
 from beetle_transcriber.midi import Channel
-
+from beetle_transcriber import dataset
 
 @dataclass
 class LossConfig:
@@ -84,3 +85,25 @@ class Loss(nn.Module):
         note_means = (loss * is_note).sum(-1).sum(-1) / is_note.sum(-1).sum(-1)
         empty_means = (loss * ~is_note).sum(-1).sum(-1) / (~is_note).sum(-1).sum(-1)
         return (note_means + empty_means).mean()
+
+
+class Trainer(pl.LightningModule):
+    def __init__(
+        self,
+        model: nn.Module,
+        loss: Loss,
+    ):
+        super().__init__()
+        self.model = model
+        self.loss = loss
+
+    def training_step(self, batch: dataset.Batch, _):
+        model_out = self.model(batch.spectrograms)
+        loss = self.loss(model_out, batch.midi_data)
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-3)
+        return optimizer
+
