@@ -125,15 +125,22 @@ class Loss(nn.Module):
         )
 
 
+@dataclass
+class LearningConfig:
+    learning_rate: float = 5e-4
+
 class Learner(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
         loss: Loss,
+        config: LearningConfig,
+
     ):
         super().__init__()
         self.model = model
         self.loss = loss
+        self.config = config
 
     def training_step(self, batch: dataset.Batch, _):
         model_out = self.model(batch.spectrograms)
@@ -151,5 +158,5 @@ class Learner(pl.LightningModule):
         return loss.loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.learning_rate)
         return optimizer

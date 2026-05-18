@@ -10,9 +10,9 @@ from torch import Tensor
 import pandas as pd
 
 from beetle_transcriber.audio import (
-    MelSpectrogramConfig,
+    SpectrogramConfig,
     load_audio_segment,
-    create_log_mel_spectrogram,
+    AudioPreprocessor,
 )
 from beetle_transcriber.midi import MidiPreprocessingConfig, preprocess_midi
 
@@ -38,18 +38,14 @@ def load_metadata() -> pd.DataFrame:
 @dataclass
 class PreprocessedSample:
     duration: float
-
     spectrogram: Tensor
-    spectrogram_config: MelSpectrogramConfig
-
     midi_data: Tensor
-    midi_config: MidiPreprocessingConfig
 
 
 def preprocess_random_segment(
     file_info: FileInfo,
     duration: float,
-    spectrogram_config: MelSpectrogramConfig | None = None,
+    audio_preprocessor: AudioPreprocessor,
     midi_config: MidiPreprocessingConfig | None = None,
 ) -> PreprocessedSample:
     audio_path = MAESTRO_PATH / file_info.audio_filename
@@ -58,12 +54,11 @@ def preprocess_random_segment(
     midi_path = MAESTRO_PATH / file_info.midi_filename
     assert midi_path.exists()
 
-    if spectrogram_config is None:
-        spectrogram_config = MelSpectrogramConfig()
-
     if midi_config is None:
         # Match time resolution to spectrogram.
-        time_resolution = spectrogram_config.hop_length / spectrogram_config.sample_rate
+        time_resolution = (
+            audio_preprocessor.config.hop_length / audio_preprocessor.config.sample_rate
+        )
         midi_config = MidiPreprocessingConfig(time_resolution)  # Default min/max note.
 
     start_point = random.random() * (file_info.duration - duration)
@@ -71,9 +66,9 @@ def preprocess_random_segment(
         file_path=audio_path,
         start_sec=start_point,
         duration_sec=duration,
-        samplerate=spectrogram_config.sample_rate,
+        samplerate=audio_preprocessor.config.sample_rate,
     )
-    spectrogram = create_log_mel_spectrogram(waveform, spectrogram_config)
+    spectrogram = audio_preprocessor(waveform)
 
     preprocessed_midi = preprocess_midi(
         midi_path,
@@ -85,9 +80,7 @@ def preprocess_random_segment(
     return PreprocessedSample(
         duration=duration,
         spectrogram=spectrogram,
-        spectrogram_config=spectrogram_config,
         midi_data=preprocessed_midi,
-        midi_config=midi_config,
     )
 
 
@@ -97,15 +90,18 @@ class AudioMidiDataset(Dataset):
         metadata: pd.DataFrame,
         num_sampled: int,
         sample_duration: float,
-        spectrogram_config: MelSpectrogramConfig | None = None,
+        spectrogram_config: SpectrogramConfig | None = None,
         midi_config: MidiPreprocessingConfig | None = None,
     ):
         super().__init__()
+        if spectrogram_config is None:
+            spectrogram_config = SpectrogramConfig()
         self.spectrogram_config = spectrogram_config
         self.midi_config = midi_config
         self.metadata = metadata
         self.num_sampled = num_sampled
         self.sample_duration = sample_duration
+        self.audio_preprocessor = AudioPreprocessor(spectrogram_config)
 
     def __len__(self):
         return self.num_sampled
@@ -123,7 +119,7 @@ class AudioMidiDataset(Dataset):
         return preprocess_random_segment(
             file_info=file_info,
             duration=self.sample_duration,
-            spectrogram_config=self.spectrogram_config,
+            audio_preprocessor=self.audio_preprocessor,
             midi_config=self.midi_config,
         )
 

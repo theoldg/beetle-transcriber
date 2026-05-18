@@ -108,7 +108,7 @@ class UNetV1(nn.Module):
             [
                 ConvLayer(
                     ConvLayerConfig(
-                        input_channels=128,
+                        input_channels=88,
                         expanded_channels=256,
                         out_channels=128,
                         kernel=5,
@@ -200,22 +200,39 @@ class UNetV1(nn.Module):
             ]
         )
 
-        self.last_layer = ConvLayer(
+        self.last_up_layer = ConvLayer(
             ConvLayerConfig(
-                input_channels=256,
+                input_channels=216,
                 expanded_channels=512,
-                out_channels=self.num_notes * midi.NUM_CHANNELS,
+                out_channels=512,
                 kernel=5,
                 stride=1,
-                normalize=False,
             )
+        )
+
+        self.final_layers = nn.ModuleList(
+            [
+                ConvLayer(
+                    ConvLayerConfig(
+                        input_channels=512,
+                        expanded_channels=1024,
+                        out_channels=self.num_notes * midi.NUM_CHANNELS,
+                        kernel=5,
+                        stride=1,
+                        normalize=False,
+                    )   
+                ),
+            ]
         )
 
     def forward(self, spectrograms: Tensor) -> Tensor:
         divisibility_contraint = 2 ** len(self.up_layers)
         assert (
             spectrograms.shape[-1] % divisibility_contraint == 0
-        ), f"For this number of layers, the time axis must be divisible by {divisibility_contraint}"
+        ), (
+            "For this number of layers, the time axis "
+            f"must be divisible by {divisibility_contraint}"
+        )
 
         x = spectrograms
         skip_inputs = []
@@ -229,7 +246,10 @@ class UNetV1(nn.Module):
             skip_input = skip_inputs[-i - 1]
             x = layer(x, skip_input)
 
-        x = self.last_layer(x, spectrograms)
+        x = self.last_up_layer(x, spectrograms)
+
+        for layer in self.final_layers:
+            x = layer(x)
 
         x = torch.transpose(x, 1, 2)
         batch, time, channels_notes = x.shape

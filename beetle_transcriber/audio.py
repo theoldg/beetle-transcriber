@@ -3,22 +3,26 @@ from pathlib import Path
 
 import soundfile as sf
 import torch
+import math
+from torch import nn
+from torch import Tensor
 import torchaudio.transforms as T
+from nnAudio.features.cqt import CQT2010v2
 
 
 @dataclasses.dataclass
-class MelSpectrogramConfig:
-    # TODO
-    # this is good enough for now but we should have
-    # mel bins aligned with 12 TET notes 
-    # (and actually logarithmic, not mel)
-
+class SpectrogramConfig:
     sample_rate: int = 44_100
-    n_fft: int = 2_048
     hop_length: int = 2_048
-    n_mels: int = 128
-    f_min: float = 10.0
-    f_max: float = 16_000.0
+
+    # C0
+    f_min: float = 27.5
+    # C8
+    f_max: float = 4186.01
+
+    @property
+    def n_bins(self):
+        return math.ceil(12 * math.log2(self.f_max / self.f_min))
 
 
 def load_audio_segment(
@@ -44,22 +48,25 @@ def load_audio_segment(
     return data
 
 
-def create_log_mel_spectrogram(
-    waveform: torch.Tensor,
-    config: MelSpectrogramConfig,
-) -> torch.Tensor:
-    """Generates a log mel spectrogram from a waveform using the provided config."""
-    mel_transform = T.MelSpectrogram(
-        sample_rate=config.sample_rate,
-        n_fft=config.n_fft,
-        hop_length=config.hop_length,
-        n_mels=config.n_mels,
-        f_min=config.f_min,
-        f_max=config.f_max,
-    )
-    amplitude_to_db = T.AmplitudeToDB(stype="power")
-    mel_spec = mel_transform(waveform)
-    log_mel_spec = amplitude_to_db(mel_spec)
-    log_mel_spec -= log_mel_spec.mean()
-    log_mel_spec /= log_mel_spec.std()
-    return log_mel_spec
+class AudioPreprocessor(nn.Module):
+    def __init__(self, config: SpectrogramConfig):
+        super().__init__()
+        self.config = config
+        self.cqt_transform = CQT2010v2(
+            sr=config.sample_rate,
+            hop_length=config.hop_length,
+            fmin=config.f_min,
+            fmax=config.f_max,
+            n_bins=config.n_bins,
+            earlydownsample=False,
+            output_format='Magnitude',
+        )
+        self.amplitude_to_db = T.AmplitudeToDB(stype="magnitude")
+
+    def forward(self, waveform: Tensor) -> Tensor:
+        spectrogram = self.cqt_transform(waveform)
+        spectrogram = spectrogram.mean(0)
+        spectrogram = self.amplitude_to_db(spectrogram)
+        spectrogram -= spectrogram.mean()
+        spectrogram /= spectrogram.std()
+        return spectrogram
