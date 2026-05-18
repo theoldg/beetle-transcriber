@@ -45,8 +45,6 @@ def _find_notes(
     for message in file:
         if hasattr(message, 'time'):
             time += message.time
-            if time > start_time + duration:
-                break
         if message.type != 'note_on':
             # Notes off are annotated as "note_on" with velocity 0.
             continue
@@ -59,14 +57,14 @@ def _find_notes(
             # Note end.
             if message.note not in note_map:
                 raise ValueError(f'Ended note that had not started: {message}')
-            start_message, start_time = note_map.pop(message.note)
+            start_message, note_start_time = note_map.pop(message.note)
             notes.append(Note(
                 note=message.note,
                 velocity=start_message.velocity,
-                start_time=start_time,
+                start_time=note_start_time,
                 end_time=time,
             ))
-    
+
     filtered_notes = []
     for note in notes:
         if note.start_time < start_time:
@@ -76,6 +74,7 @@ def _find_notes(
         note.start_time -= start_time
         note.end_time -= start_time
         note.end_time = min(note.end_time, duration)
+        filtered_notes.append(note)
 
     return filtered_notes
 
