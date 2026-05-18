@@ -16,7 +16,7 @@ class MelSpectrogramConfig:
     sample_rate: int = 44_100
     n_fft: int = 2_048
     hop_length: int = 2_048
-    n_mels: int = 120
+    n_mels: int = 128
     f_min: float = 10.0
     f_max: float = 16_000.0
 

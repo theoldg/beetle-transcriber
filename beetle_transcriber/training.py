@@ -28,44 +28,53 @@ class Loss(nn.Module):
         self.config = config
 
     def forward(self, model_out: Tensor, ground_truth: Tensor) -> Tensor:
-        # TODO: handle segments without any notes
         batch, time, note, channels = model_out.shape
         loss = torch.zeros(batch, time, note)
 
         is_note = ground_truth[:, :, :, Channel.CONFIDENCE] == 1        
-        note_vals = loss[is_note]
-        empty_vals = loss[~is_note]
 
         # Binary cross-entropy for non-notes.
-        empty_vals += (
+        loss[~is_note] += (
             self.config.cross_entropy_weight
-            * -torch.log(1 - model_out[~is_note][:, Channel.CONFIDENCE])
+            * nn.functional.binary_cross_entropy_with_logits(
+                input=model_out[~is_note][:, Channel.CONFIDENCE],
+                target=torch.zeros((~is_note).sum()),
+                reduction='none',
+            )
         )
+
         if not is_note.any():
-            return empty_vals.mean()
+            # This can happen occationally but shouldn't be more than e.g. 10% of the time.
+            # TODO: remove when confident that this is not an issue.
+            print('Weird: segment with zero notes')
+            return loss[~is_note].mean()
         
         # Binary cross-entropy for notes.
-        note_vals += (
+        loss[is_note] += (
             self.config.cross_entropy_weight
-            * -torch.log(model_out[is_note][:, Channel.CONFIDENCE])
+            * nn.functional.binary_cross_entropy_with_logits(
+                input=model_out[is_note][:, Channel.CONFIDENCE],
+                target=torch.ones(is_note.sum()),
+                reduction='none',
+            )
         )
 
         # Offset.
-        note_vals += (
+        loss[is_note] += (
             self.config.offset_weight 
             * torch.abs(
                 model_out[is_note][:, Channel.OFFSET] - ground_truth[is_note][:, Channel.OFFSET]
             ) ** (self.config.offset_pow)
         )
         # Duration.
-        note_vals += (
+        loss[is_note] += (
             self.config.duration_weight
             * torch.abs(
                 model_out[is_note][:, Channel.DURATION] - ground_truth[is_note][:, Channel.DURATION]
             ) ** (self.config.duration_pow)
         )
         # Velocity.
-        note_vals += (
+        loss[is_note] += (
             self.config.velocity_weight 
             * torch.abs(
                 model_out[is_note][:, Channel.VELOCITY] - ground_truth[is_note][:, Channel.VELOCITY]

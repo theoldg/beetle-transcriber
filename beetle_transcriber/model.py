@@ -98,10 +98,10 @@ class UpLayer(nn.Module):
 class UNetV1(nn.Module):
     def __init__(
         self,
-        midi_config: midi.MidiPreprocessingConfig,
+        num_notes: int,
     ):
         super().__init__()
-        self.midi_config = midi_config
+        self.num_notes = num_notes
 
         self.down_layers = nn.ModuleList(
             [
@@ -151,11 +151,10 @@ class UNetV1(nn.Module):
             ]
         )
 
-        num_notes = midi_config.max_note - midi_config.min_note
 
         self.last_layer = ConvLayer(ConvLayerConfig(
             input_channels=128,
-            out_channels=num_notes * midi.NUM_CHANNELS,
+            out_channels=self.num_notes * midi.NUM_CHANNELS,
             expanded_channels=256,
             kernel=1,
             stride=1,
