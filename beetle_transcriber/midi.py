@@ -1,7 +1,7 @@
 """Preprocessing MIDI for training. All time is in seconds."""
 
 from dataclasses import dataclass
-from enum import Enum
+from itertools import product
 from pathlib import Path
 import math
 
@@ -28,7 +28,7 @@ class Note:
 
     # Midi value, 0-127.
     velocity: int
-    
+
     # In seconds.
     start_time: float
     end_time: float
@@ -40,14 +40,14 @@ def _find_notes(
     duration: float,
 ) -> list[Note]:
     file = mido.MidiFile(path)
-    
+
     note_map = {}
     notes: list[Note] = []
     time = 0
     for message in file:
-        if hasattr(message, 'time'):
+        if hasattr(message, "time"):
             time += message.time
-        if message.type != 'note_on':
+        if message.type != "note_on":
             # Notes off are annotated as "note_on" with velocity 0.
             continue
         if message.velocity != 0:
@@ -55,24 +55,28 @@ def _find_notes(
             if message.note in note_map:
                 # Repeated start: just end the previous note.
                 start_message, note_start_time = note_map.pop(message.note)
-                notes.append(Note(
-                    note=message.note,
-                    velocity=start_message.velocity,
-                    start_time=note_start_time,
-                    end_time=time,
-                ))
+                notes.append(
+                    Note(
+                        note=message.note,
+                        velocity=start_message.velocity,
+                        start_time=note_start_time,
+                        end_time=time,
+                    )
+                )
             note_map[message.note] = message, time
         else:
             # Note end.
             if message.note not in note_map:
                 continue
             start_message, note_start_time = note_map.pop(message.note)
-            notes.append(Note(
-                note=message.note,
-                velocity=start_message.velocity,
-                start_time=note_start_time,
-                end_time=time,
-            ))
+            notes.append(
+                Note(
+                    note=message.note,
+                    velocity=start_message.velocity,
+                    start_time=note_start_time,
+                    end_time=time,
+                )
+            )
 
     filtered_notes = []
     for note in notes:
@@ -112,14 +116,21 @@ def _normalize_sample(
     data[..., Channel.VELOCITY] /= 128
 
 
+def _get_gaussian_window(radius: int, strength: float):
+    x = torch.linspace(-radius, radius, 2 * radius + 1)
+    return torch.exp(-((x / strength) ** 2))
+
+
 def preprocess_midi(
     path: Path,
     config: MidiPreprocessingConfig,
     start_time: float,
     duration: float,
+    smoothing_radius: int = 0,
+    smoothing_strength: float = 0.5,
 ) -> torch.Tensor:
     notes = _find_notes(path, start_time=start_time, duration=duration)
-    
+
     num_time_steps = math.ceil(duration / config.time_resolution)
     num_notes = config.max_note - config.min_note
 
@@ -128,19 +139,24 @@ def preprocess_midi(
         dtype=torch.float32,
     )
 
-    for note in notes:
-        time_step = round(note.start_time / config.time_resolution)
-        if time_step == num_time_steps:
+    window_weights = _get_gaussian_window(smoothing_radius, smoothing_strength)
+
+    for note, dt in product(notes, range(-smoothing_radius, smoothing_radius + 1)):
+        time_step = dt + round(note.start_time / config.time_resolution)
+        if not (0 <= time_step < num_time_steps):
             continue
         offset = note.start_time - time_step * config.time_resolution
         note_shifted = note.note - config.min_note
         assert note_shifted >= 0
 
-        data_point = data[time_step, note_shifted]
-        data_point[Channel.CONFIDENCE] = 1.
+        data_point = torch.zeros(NUM_CHANNELS, dtype=torch.float32)
+        data_point[Channel.CONFIDENCE] = 1.0
         data_point[Channel.OFFSET] = offset
         data_point[Channel.DURATION] = note.end_time - note.start_time
         data_point[Channel.VELOCITY] = note.velocity
-    
+
+        weight = window_weights[dt + smoothing_radius]
+        data[time_step, note_shifted] += data_point * weight
+
     _normalize_sample(data, config)
     return data
