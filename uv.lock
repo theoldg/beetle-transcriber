@@ -244,6 +244,11 @@ dependencies = [
     { name = "tqdm" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "beetle-transcriber" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "jupyter", specifier = ">=1.1.1" },
@@ -259,6 +264,9 @@ requires-dist = [
     { name = "torchvision", specifier = ">=0.27.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "beetle-transcriber", virtual = "." }]
 
 [[package]]
 name = "bleach"

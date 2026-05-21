@@ -13,3 +13,4 @@ wheels/
 *.ipynb
 
 lightning_logs/
+temp_testing/
