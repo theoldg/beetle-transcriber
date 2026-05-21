@@ -12,7 +12,4 @@ wheels/
 .env
 *.ipynb
 
-# I'll add it later
-uv.lock
-
 lightning_logs/
