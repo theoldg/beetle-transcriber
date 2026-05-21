@@ -12,6 +12,10 @@ Ideas:
 - Loosen the time precision constraints, e.g. allow predicting one square early or late if the offset is right
     - Would need some kind of hungarian matching?
 
+--> Somehow did both and neither at the same time by blurring each data point and allowing for overlap / "additive synthesis"
+
+--> TODO: rewrite loss to account for non-binary confidence scores.
+
 ## Data
 
 We use the [Maestro V3](https://magenta.withgoogle.com/datasets/maestro) dataset.
