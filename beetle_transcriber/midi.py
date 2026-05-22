@@ -21,6 +21,10 @@ class MidiPreprocessingConfig:
     # Highest note on the piano (exclusive).
     max_note: int = 109
 
+    smoothing_radius: int = 2
+    # In seconds.
+    smoothing_std: float = 0.07
+
 
 @dataclass
 class Note:
@@ -120,8 +124,6 @@ def preprocess_midi(
     config: MidiPreprocessingConfig,
     start_time: float,
     duration: float,
-    smoothing_radius: int = 0,
-    smoothing_strength: float = 0.5,
 ) -> torch.Tensor:
     notes = _find_notes(path, start_time=start_time, duration=duration)
 
@@ -133,13 +135,14 @@ def preprocess_midi(
         dtype=torch.float32,
     )
 
-    for note, dt in product(notes, range(-smoothing_radius, smoothing_radius + 1)):
+    r = config.smoothing_radius
+    for note, dt in product(notes, range(-r, r + 1)):
         time_step = dt + round(note.start_time / config.time_resolution)
         if not (0 <= time_step < num_time_steps):
             continue
         note_index = note.note - config.min_note
         offset = note.start_time - time_step * config.time_resolution
-        weight = np.exp(-((offset / smoothing_strength) ** 2))
+        weight = np.exp(-0.5 * (offset / config.smoothing_std) ** 2)
         data_point = data[time_step, note_index]
         data_point[Channel.CONFIDENCE_SUM] += weight
         if weight > data_point[Channel.CONFIDENCE_MAX]:

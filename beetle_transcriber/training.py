@@ -41,9 +41,9 @@ class Loss(nn.Module):
     ) -> dict[str, float | Tensor]:
         is_note = ground_truth[..., Channel.CONFIDENCE_MAX] == 1
         is_note_model = model_out[..., Channel.CONFIDENCE_MAX] >= 0
-        precision = (is_note_model & is_note).sum() / max(is_note_model.sum(), 1)
-        recall = (is_note_model & is_note).sum() / max(is_note.sum(), 1)
-        f1_score = 2 * precision * recall / (precision + recall)
+        precision = (is_note_model & is_note).sum() / (is_note_model.sum() or 1)
+        recall = (is_note_model & is_note).sum() / (is_note.sum() or 1)
+        f1_score = 2 * precision * recall / ((precision + recall) or 1)
         return {
             "precision": precision,
             "recall": recall,
@@ -54,6 +54,7 @@ class Loss(nn.Module):
         batch, time, note, channels = model_out.shape
         loss = torch.zeros(batch, time, note, device=model_out.device)
         metrics = {}
+        empty_idx = ground_truth[..., Channel.CONFIDENCE_SUM] == 0
 
         # Max confidence: binary cross-entropy.
         bce = nn.functional.binary_cross_entropy_with_logits(
@@ -62,7 +63,7 @@ class Loss(nn.Module):
             reduction="none",
         )
         loss += self.config.cross_entropy_weight * bce
-        metrics["bce"] = bce.mean()
+        metrics["bce"] = bce[~empty_idx].mean()
 
         # Total confidence: regression.
         confidence_sum_loss = torch.abs(
@@ -70,7 +71,7 @@ class Loss(nn.Module):
             - ground_truth[..., Channel.CONFIDENCE_SUM]
         ) ** (self.config.confidence_sum_pow)
         loss += self.config.confidence_sum_weight * confidence_sum_loss
-        metrics["confidence_sum"] = confidence_sum_loss.mean()
+        metrics["confidence_sum"] = confidence_sum_loss[~empty_idx].mean()
 
         sub_loss_weight = ground_truth[..., Channel.CONFIDENCE_MAX]
 
@@ -79,17 +80,23 @@ class Loss(nn.Module):
             model_out[..., Channel.OFFSET] - ground_truth[..., Channel.OFFSET]
         ) ** (self.config.offset_pow)
         loss += self.config.offset_weight * offset_loss
-        metrics["offset_loss"] = offset_loss.mean()
+        metrics["offset_loss"] = offset_loss[~empty_idx].mean()
 
         # Velocity: regression.
         velocity_loss = sub_loss_weight * torch.abs(
             model_out[..., Channel.VELOCITY] - ground_truth[..., Channel.VELOCITY]
         ) ** (self.config.velocity_pow)
         loss += self.config.velocity_weight * velocity_loss
-        metrics["velocity_loss"] = velocity_loss.mean()
+        metrics["velocity_loss"] = velocity_loss[~empty_idx].mean()
+
+        empty_loss = loss[empty_idx].mean()
+        nonempty_loss = loss[~empty_idx].mean()
+        metrics["emtpy"] = empty_loss
+        metrics["nonempty"] = nonempty_loss
 
         metrics |= self.calculate_classification_metrics(model_out, ground_truth)
-        return LossOutput(loss=loss.mean(), metrics=metrics)
+
+        return LossOutput(loss=empty_loss + nonempty_loss, metrics=metrics)
 
 
 @dataclass
