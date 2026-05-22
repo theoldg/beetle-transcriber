@@ -5,9 +5,14 @@ In this project I attempt to create an audio-to-MIDI ML model for music transcri
 ## Status
 
 ### TODO:
-- Think about how to make this 2d. Input: (time, pitch, harmonics as features). Output: (time, pitch, channels). Hmm.
+- Add harmonics as channels in input ("harmonic lowering")
 - Add standard stuff: LR scheduler, dropout, augmentation, etc
 - Refactor for more configurability (expose spectrogram config etc) and try some hyperparameters
+
+
+### 22.5 (2)
+
+I made it 2d, let's see what happens.
 
 ### 22.5
 

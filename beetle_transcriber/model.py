@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+import math
 
 import torch
 from torch import nn, Tensor
@@ -19,6 +19,9 @@ class ConvLayerConfig:
 
 
 class ConvLayer(nn.Module):
+    CONV: nn.Module
+    NORM: nn.Module
+
     def __init__(self, config: ConvLayerConfig):
         super().__init__()
         if not (1 <= config.stride <= 2):
@@ -33,8 +36,8 @@ class ConvLayer(nn.Module):
                 config.input_channels,
                 config.expanded_channels,
                 kernel_size=1,
-                norm_layer=nn.BatchNorm1d,
-                conv_layer=nn.Conv1d,
+                norm_layer=self.NORM,
+                conv_layer=self.CONV,
             )
         )
 
@@ -46,8 +49,8 @@ class ConvLayer(nn.Module):
                 kernel_size=config.kernel,
                 stride=config.stride,
                 groups=config.expanded_channels,
-                norm_layer=nn.BatchNorm1d,
-                conv_layer=nn.Conv1d,
+                norm_layer=self.NORM,
+                conv_layer=self.CONV,
             )
         )
         # Project
@@ -56,9 +59,9 @@ class ConvLayer(nn.Module):
                 config.expanded_channels,
                 config.out_channels,
                 kernel_size=1,
-                norm_layer=nn.BatchNorm1d if self.config.normalize else torch.nn.Identity,
+                norm_layer=self.NORM if self.config.normalize else torch.nn.Identity,
                 activation_layer=None,
-                conv_layer=nn.Conv1d,
+                conv_layer=self.CONV,
             )
         )
 
@@ -76,15 +79,25 @@ class ConvLayer(nn.Module):
         return result
 
 
+class ConvLayer1d(ConvLayer):
+    CONV = nn.Conv1d
+    NORM = nn.BatchNorm1d
+
+
+class ConvLayer2d(ConvLayer):
+    CONV = nn.Conv2d
+    NORM = nn.BatchNorm2d
+
+
 class UpLayer(nn.Module):
     def __init__(
         self,
         upsample_factor: int,
-        conv_config: ConvLayerConfig,
+        conv_layer: ConvLayer,
     ):
         super().__init__()
         self.factor = upsample_factor
-        self.conv_layer = ConvLayer(conv_config)
+        self.conv_layer = conv_layer
 
     def forward(
         self,
@@ -93,6 +106,8 @@ class UpLayer(nn.Module):
     ) -> Tensor:
         x = self.conv_layer(x, skip_input)
         x = torch.repeat_interleave(x, self.factor, dim=2)
+        if x.ndim == 4:
+            x = torch.repeat_interleave(x, self.factor, dim=3)
         return x
 
 
@@ -106,7 +121,7 @@ class UNetV1(nn.Module):
 
         self.down_layers = nn.ModuleList(
             [
-                ConvLayer(
+                ConvLayer1d(
                     ConvLayerConfig(
                         input_channels=88,
                         expanded_channels=256,
@@ -115,7 +130,7 @@ class UNetV1(nn.Module):
                         stride=2,
                     )
                 ),
-                ConvLayer(
+                ConvLayer1d(
                     ConvLayerConfig(
                         input_channels=128,
                         expanded_channels=256,
@@ -124,7 +139,7 @@ class UNetV1(nn.Module):
                         stride=2,
                     )
                 ),
-                ConvLayer(
+                ConvLayer1d(
                     ConvLayerConfig(
                         input_channels=256,
                         expanded_channels=256,
@@ -133,7 +148,7 @@ class UNetV1(nn.Module):
                         stride=2,
                     )
                 ),
-                ConvLayer(
+                ConvLayer1d(
                     ConvLayerConfig(
                         input_channels=256,
                         expanded_channels=512,
@@ -145,7 +160,7 @@ class UNetV1(nn.Module):
             ]
         )
 
-        self.middle_layer = ConvLayer(
+        self.middle_layer = ConvLayer1d(
             ConvLayerConfig(
                 input_channels=512,
                 expanded_channels=512,
@@ -159,48 +174,56 @@ class UNetV1(nn.Module):
             [
                 UpLayer(
                     upsample_factor=2,
-                    conv_config=ConvLayerConfig(
-                        input_channels=1024,
-                        expanded_channels=1024,
-                        out_channels=512,
-                        kernel=5,
-                        stride=1,
+                    conv_layer=ConvLayer1d(
+                        ConvLayerConfig(
+                            input_channels=1024,
+                            expanded_channels=1024,
+                            out_channels=512,
+                            kernel=5,
+                            stride=1,
+                        )
                     ),
                 ),
                 UpLayer(
                     upsample_factor=2,
-                    conv_config=ConvLayerConfig(
-                        input_channels=768,
-                        expanded_channels=768,
-                        out_channels=512,
-                        kernel=5,
-                        stride=1,
+                    conv_layer=ConvLayer1d(
+                        ConvLayerConfig(
+                            input_channels=768,
+                            expanded_channels=768,
+                            out_channels=512,
+                            kernel=5,
+                            stride=1,
+                        )
                     ),
                 ),
                 UpLayer(
                     upsample_factor=2,
-                    conv_config=ConvLayerConfig(
-                        input_channels=768,
-                        expanded_channels=512,
-                        out_channels=256,
-                        kernel=5,
-                        stride=1,
+                    conv_layer=ConvLayer1d(
+                        ConvLayerConfig(
+                            input_channels=768,
+                            expanded_channels=512,
+                            out_channels=256,
+                            kernel=5,
+                            stride=1,
+                        )
                     ),
                 ),
                 UpLayer(
                     upsample_factor=2,
-                    conv_config=ConvLayerConfig(
-                        input_channels=384,
-                        expanded_channels=256,
-                        out_channels=128,
-                        kernel=5,
-                        stride=1,
+                    conv_layer=ConvLayer1d(
+                        ConvLayerConfig(
+                            input_channels=384,
+                            expanded_channels=256,
+                            out_channels=128,
+                            kernel=5,
+                            stride=1,
+                        )
                     ),
                 ),
             ]
         )
 
-        self.last_up_layer = ConvLayer(
+        self.last_up_layer = ConvLayer1d(
             ConvLayerConfig(
                 input_channels=216,
                 expanded_channels=512,
@@ -212,7 +235,7 @@ class UNetV1(nn.Module):
 
         self.final_layers = nn.ModuleList(
             [
-                ConvLayer(
+                ConvLayer1d(
                     ConvLayerConfig(
                         input_channels=512,
                         expanded_channels=1024,
@@ -220,16 +243,14 @@ class UNetV1(nn.Module):
                         kernel=5,
                         stride=1,
                         normalize=False,
-                    )   
+                    )
                 ),
             ]
         )
 
     def forward(self, spectrograms: Tensor) -> Tensor:
         divisibility_contraint = 2 ** len(self.up_layers)
-        assert (
-            spectrograms.shape[-1] % divisibility_contraint == 0
-        ), (
+        assert spectrograms.shape[-1] % divisibility_contraint == 0, (
             "For this number of layers, the time axis "
             f"must be divisible by {divisibility_contraint}"
         )
@@ -254,5 +275,185 @@ class UNetV1(nn.Module):
         x = torch.transpose(x, 1, 2)
         batch, time, channels_notes = x.shape
         x = x.reshape(batch, time, -1, midi.NUM_CHANNELS)
+
+        return x
+
+
+class UNetV2(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.down_layers = nn.ModuleList(
+            [
+                ConvLayer2d(
+                    ConvLayerConfig(
+                        input_channels=1,
+                        expanded_channels=256,
+                        out_channels=128,
+                        kernel=5,
+                        stride=2,
+                    )
+                ),
+                ConvLayer2d(
+                    ConvLayerConfig(
+                        input_channels=128,
+                        expanded_channels=256,
+                        out_channels=256,
+                        kernel=5,
+                        stride=2,
+                    )
+                ),
+                ConvLayer2d(
+                    ConvLayerConfig(
+                        input_channels=256,
+                        expanded_channels=256,
+                        out_channels=256,
+                        kernel=3,
+                        stride=2,
+                    )
+                ),
+                ConvLayer2d(
+                    ConvLayerConfig(
+                        input_channels=256,
+                        expanded_channels=512,
+                        out_channels=512,
+                        kernel=3,
+                        stride=2,
+                    )
+                ),
+            ]
+        )
+
+        self.middle_layer = ConvLayer2d(
+            ConvLayerConfig(
+                input_channels=512,
+                expanded_channels=512,
+                out_channels=512,
+                kernel=3,
+                stride=1,
+            )
+        )
+
+        self.up_layers = nn.ModuleList(
+            [
+                UpLayer(
+                    upsample_factor=2,
+                    conv_layer=ConvLayer2d(
+                        ConvLayerConfig(
+                            input_channels=1024,
+                            expanded_channels=1024,
+                            out_channels=512,
+                            kernel=5,
+                            stride=1,
+                        )
+                    ),
+                ),
+                UpLayer(
+                    upsample_factor=2,
+                    conv_layer=ConvLayer2d(
+                        ConvLayerConfig(
+                            input_channels=768,
+                            expanded_channels=768,
+                            out_channels=512,
+                            kernel=5,
+                            stride=1,
+                        )
+                    ),
+                ),
+                UpLayer(
+                    upsample_factor=2,
+                    conv_layer=ConvLayer2d(
+                        ConvLayerConfig(
+                            input_channels=768,
+                            expanded_channels=512,
+                            out_channels=256,
+                            kernel=5,
+                            stride=1,
+                        )
+                    ),
+                ),
+                UpLayer(
+                    upsample_factor=2,
+                    conv_layer=ConvLayer2d(
+                        ConvLayerConfig(
+                            input_channels=384,
+                            expanded_channels=256,
+                            out_channels=128,
+                            kernel=5,
+                            stride=1,
+                        )
+                    ),
+                ),
+            ]
+        )
+
+        self.last_up_layer = ConvLayer2d(
+            ConvLayerConfig(
+                input_channels=129,
+                expanded_channels=129,
+                out_channels=64,
+                kernel=5,
+                stride=1,
+            )
+        )
+
+        self.final_layers = nn.ModuleList(
+            [
+                ConvLayer2d(
+                    ConvLayerConfig(
+                        input_channels=64,
+                        expanded_channels=128,
+                        out_channels=midi.NUM_CHANNELS,
+                        kernel=5,
+                        stride=1,
+                        normalize=False,
+                    )
+                ),
+            ]
+        )
+
+    def forward(self, spectrograms: Tensor) -> Tensor:
+        batch_d, freq_d, time_d = spectrograms.shape
+
+        divisibility_contraint = 2 ** len(self.up_layers)
+        assert time_d % divisibility_contraint == 0, (
+            "For this number of layers, the time axis "
+            f"must be divisible by {divisibility_contraint}"
+        )
+
+        freq_d_nearest_pow2 = 2 ** (math.ceil(math.log2(freq_d)))
+        spectrograms = torch.concat(
+            (
+                spectrograms,
+                torch.zeros(
+                    batch_d,
+                    freq_d_nearest_pow2 - freq_d,
+                    time_d,
+                    device=spectrograms.device,
+                ),
+            ),
+            dim=1,
+        )
+        spectrograms = spectrograms[:, torch.newaxis]
+
+        x = spectrograms
+        skip_inputs = []
+        for i, layer in enumerate(self.down_layers):
+            x = layer(x)
+            skip_inputs.append(x)
+
+        x = self.middle_layer(x)
+
+        for i, layer in enumerate(self.up_layers):
+            skip_input = skip_inputs[-i - 1]
+            x = layer(x, skip_input)
+
+        x = self.last_up_layer(x, spectrograms)
+        x = x[:, :, :freq_d]
+
+        for layer in self.final_layers:
+            x = layer(x)
+
+        x = torch.transpose(x, 1, 3)
 
         return x
