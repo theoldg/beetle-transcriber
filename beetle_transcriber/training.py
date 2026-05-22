@@ -11,7 +11,8 @@ from beetle_transcriber import dataset
 
 @dataclass
 class LossConfig:
-    cross_entropy_weight: float = 1
+    cross_entropy_weight: float = 10
+    empty_weight: float = 6
 
     confidence_sum_pow: float = 2
     confidence_sum_weight: float = 1
@@ -39,7 +40,7 @@ class Loss(nn.Module):
         model_out: Tensor,
         ground_truth: Tensor,
     ) -> dict[str, float | Tensor]:
-        is_note = ground_truth[..., Channel.CONFIDENCE_MAX] == 1
+        is_note = ground_truth[..., Channel.CONFIDENCE_MAX] > 0.5
         is_note_model = model_out[..., Channel.CONFIDENCE_MAX] >= 0
         precision = (is_note_model & is_note).sum() / (is_note_model.sum() or 1)
         recall = (is_note_model & is_note).sum() / (is_note.sum() or 1)
@@ -91,12 +92,15 @@ class Loss(nn.Module):
 
         empty_loss = loss[empty_idx].mean()
         nonempty_loss = loss[~empty_idx].mean()
-        metrics["emtpy"] = empty_loss
+        metrics["empty"] = empty_loss
         metrics["nonempty"] = nonempty_loss
 
         metrics |= self.calculate_classification_metrics(model_out, ground_truth)
 
-        return LossOutput(loss=empty_loss + nonempty_loss, metrics=metrics)
+        return LossOutput(
+            loss=empty_loss * self.config.empty_weight + nonempty_loss,
+            metrics=metrics,
+        )
 
 
 @dataclass

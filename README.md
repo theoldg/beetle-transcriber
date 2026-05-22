@@ -4,6 +4,15 @@ In this project I attempt to create an audio-to-MIDI ML model for music transcri
 
 ## Status
 
+### 22.5
+
+It's doing something! This is the onset map, without any consideration for sub-time-bin offset estimation, MIDI note velocity or note duration (which is apparently a hard problem).
+
+![diagram](pictures/1.png)
+
+
+### 21.5
+
 It's fitting, but not very well. With the current time resolution I get ~50% ish F1 score (which, for the record, is waay better than random
 but still crap).
 
@@ -14,7 +23,6 @@ Ideas:
 
 --> Somehow did both and neither at the same time by blurring each data point and allowing for overlap / "additive synthesis"
 
---> TODO: rewrite loss to account for non-binary confidence scores.
 
 ## Data
 
