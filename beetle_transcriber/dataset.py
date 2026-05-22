@@ -157,4 +157,5 @@ def make_dataloader(
         batch_size=batch_size,
         collate_fn=_collate,
         num_workers=num_workers,
+        persistent_workers=True,
     )

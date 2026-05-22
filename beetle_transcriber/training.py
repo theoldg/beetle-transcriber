@@ -120,7 +120,7 @@ class Learner(pl.LightningModule):
         self.loss = loss
         self.config = config
 
-    def training_step(self, batch: dataset.Batch, _):
+    def _calculate_loss(self, batch: dataset.Batch, split: str) -> Loss:
         model_out = self.model(batch.spectrograms)
         if torch.isnan(model_out).any():
             raise RuntimeError("NaN model outputs.")
@@ -128,12 +128,19 @@ class Learner(pl.LightningModule):
         if torch.isnan(loss.loss):
             raise RuntimeError("NaN loss.")
 
-        self.log("train/loss", loss.loss, prog_bar=True, on_step=True)
-
+        self.log(f"{split}/loss", loss.loss, prog_bar=True, on_step=True)
         for metric_name, value in loss.metrics.items():
-            self.log("train/" + metric_name, value, prog_bar=True, on_step=True)
+            self.log(f"{split}/{metric_name}", value, prog_bar=True, on_step=True)
 
+        return loss
+
+    def training_step(self, batch: dataset.Batch, _):
+        loss = self._calculate_loss(batch, "train")
         return loss.loss
+
+    def validation_step(self, batch: dataset.Batch, _):
+        with torch.no_grad():
+            self._calculate_loss(batch, "valid")
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.learning_rate)
