@@ -4,6 +4,10 @@ In this project I attempt to create an audio-to-MIDI ML model for music transcri
 
 ## Status
 
+### TODO:
+- Add standard stuff: LR scheduler, dropout, augmentation, etc
+- Refactor for more configurability (expose spectrogram config etc) and try some hyperparameters
+
 ### 22.5
 
 It's doing something! This is the onset map, without any consideration for sub-time-bin offset estimation, MIDI note velocity or note duration (which is apparently a hard problem).
@@ -21,7 +25,9 @@ Ideas:
 - Loosen the time precision constraints, e.g. allow predicting one square early or late if the offset is right
     - Would need some kind of hungarian matching?
 
---> Somehow did both and neither at the same time by blurring each data point and allowing for overlap / "additive synthesis"
+> Somehow did both and neither at the same time by blurring each data point and allowing for overlap / "additive synthesis"
+> This raises the question of how to rebalance the loss, since before we had "mean loss for notes" + "mean loss for blank spaces".
+> In the end, I kept this idea and considered any grid square with nonzero signal to be a note.
 
 
 ## Data
