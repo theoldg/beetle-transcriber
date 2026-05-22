@@ -94,6 +94,8 @@ class AudioMidiDataset(Dataset):
         midi_config: MidiPreprocessingConfig | None = None,
     ):
         super().__init__()
+        if len(metadata) == 0:
+            raise ValueError('Metadata DataFrame is empty.')
         if spectrogram_config is None:
             spectrogram_config = SpectrogramConfig()
         self.spectrogram_config = spectrogram_config
@@ -143,8 +145,10 @@ def make_dataloader(
     batch_size: int,
     sample_duration: float,
     num_workers: int,
+    metadata: pd.DataFrame | None = None,
 ):
-    metadata = load_metadata()
+    if metadata is None:
+        metadata = load_metadata()
     metadata = metadata.loc[metadata.split == split]
     assert len(metadata) > 0
     dataset = AudioMidiDataset(metadata, samples_per_epoch, sample_duration)

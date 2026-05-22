@@ -7,6 +7,7 @@ import math
 
 import mido
 import torch
+import numpy as np
 
 
 @dataclass
@@ -93,10 +94,11 @@ def _find_notes(
 
 
 class Channel:
-    CONFIDENCE = 0
-    OFFSET = 1
-    DURATION = 2
+    CONFIDENCE_SUM = 0
+    CONFIDENCE_MAX = 1
+    OFFSET = 2
     VELOCITY = 3
+    # DURATION = 4
 
 
 NUM_CHANNELS = 4
@@ -109,16 +111,8 @@ def _normalize_sample(
     # Normalized offset ranges from -1 to 1.
     data[..., Channel.OFFSET] /= config.time_resolution / 2
 
-    # Median note duration seems to be around 100 ms.
-    data[..., Channel.DURATION] /= 0.1
-
     # The maximum velocity is 127.
     data[..., Channel.VELOCITY] /= 128
-
-
-def _get_gaussian_window(radius: int, strength: float):
-    x = torch.linspace(-radius, radius, 2 * radius + 1)
-    return torch.exp(-((x / strength) ** 2))
 
 
 def preprocess_midi(
@@ -139,24 +133,19 @@ def preprocess_midi(
         dtype=torch.float32,
     )
 
-    window_weights = _get_gaussian_window(smoothing_radius, smoothing_strength)
-
     for note, dt in product(notes, range(-smoothing_radius, smoothing_radius + 1)):
         time_step = dt + round(note.start_time / config.time_resolution)
         if not (0 <= time_step < num_time_steps):
             continue
+        note_index = note.note - config.min_note
         offset = note.start_time - time_step * config.time_resolution
-        note_shifted = note.note - config.min_note
-        assert note_shifted >= 0
-
-        data_point = torch.zeros(NUM_CHANNELS, dtype=torch.float32)
-        data_point[Channel.CONFIDENCE] = 1.0
-        data_point[Channel.OFFSET] = offset
-        data_point[Channel.DURATION] = note.end_time - note.start_time
-        data_point[Channel.VELOCITY] = note.velocity
-
-        weight = window_weights[dt + smoothing_radius]
-        data[time_step, note_shifted] += data_point * weight
+        weight = np.exp(-((offset / smoothing_strength) ** 2))
+        data_point = data[time_step, note_index]
+        data_point[Channel.CONFIDENCE_SUM] += weight
+        if weight > data_point[Channel.CONFIDENCE_MAX]:
+            data_point[Channel.CONFIDENCE_MAX] = weight
+            data_point[Channel.VELOCITY] = note.velocity
+            data_point[Channel.OFFSET] = offset
 
     _normalize_sample(data, config)
     return data
