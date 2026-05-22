@@ -279,15 +279,49 @@ class UNetV1(nn.Module):
         return x
 
 
-class UNetV2(nn.Module):
-    def __init__(self):
+class HarmonicLowering(nn.Module):
+    HARMONICS = {
+        0: 0,
+        1: 12,  # Octave
+        2: 12 + 7,  # Octave + fifth
+        3: 24,  # Two octaves
+        4: 24 + 5,  # Two octaves + fourth
+        5: 24 + 5 + 4,  # Two octaves + fourth + major third
+    }
+
+    def __init__(
+        self,
+        included_harmonics: list[int] = [0, 1, 2, 3, 4, 5],
+    ):
         super().__init__()
+        self.included_harmonics = included_harmonics
+        self.offsets = [self.HARMONICS[i] for i in included_harmonics]
+
+    def forward(self, spectrogram: Tensor) -> Tensor:
+        """In: (batch, freq, time). Out: (batch, harmonics, freq, time)."""
+        batch_d, freq_d, time_d = spectrogram.shape
+        output = torch.zeros(
+            *(batch_d, len(self.offsets), freq_d, time_d),
+            dtype=spectrogram.dtype,
+            device=spectrogram.device,
+        )
+        for harmonic_i, offset in enumerate(self.offsets):
+            output[:, harmonic_i, : freq_d - offset] = spectrogram[:, offset:]
+        return output
+
+
+class UNetV2(nn.Module):
+    def __init__(self, num_notes: int = 88):
+        super().__init__()
+        self.num_notes = num_notes
+
+        self.harmonic_lowering = HarmonicLowering()
 
         self.down_layers = nn.ModuleList(
             [
                 ConvLayer2d(
                     ConvLayerConfig(
-                        input_channels=1,
+                        input_channels=6,  # Lowered harmonics.
                         expanded_channels=256,
                         out_channels=128,
                         kernel=5,
@@ -389,7 +423,7 @@ class UNetV2(nn.Module):
 
         self.last_up_layer = ConvLayer2d(
             ConvLayerConfig(
-                input_channels=129,
+                input_channels=134,
                 expanded_channels=129,
                 out_channels=64,
                 kernel=5,
@@ -434,7 +468,8 @@ class UNetV2(nn.Module):
             ),
             dim=1,
         )
-        spectrograms = spectrograms[:, torch.newaxis]
+
+        spectrograms = self.harmonic_lowering(spectrograms)
 
         x = spectrograms
         skip_inputs = []
@@ -449,7 +484,7 @@ class UNetV2(nn.Module):
             x = layer(x, skip_input)
 
         x = self.last_up_layer(x, spectrograms)
-        x = x[:, :, :freq_d]
+        x = x[:, :, :self.num_notes]
 
         for layer in self.final_layers:
             x = layer(x)

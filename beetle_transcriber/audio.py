@@ -15,10 +15,10 @@ class SpectrogramConfig:
     sample_rate: int = 44_100
     hop_length: int = 2_048
 
-    # C0
+    # C0, lowest note on extended pianos.
     f_min: float = 27.5
-    # C8
-    f_max: float = 4186.01
+    # Nyquist freq for 44 100. Used for harmonic lowering.
+    f_max: float = 22_050
 
     @property
     def n_bins(self):

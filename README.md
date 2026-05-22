@@ -5,14 +5,19 @@ In this project I attempt to create an audio-to-MIDI ML model for music transcri
 ## Status
 
 ### TODO:
-- Add harmonics as channels in input ("harmonic lowering")
 - Add standard stuff: LR scheduler, dropout, augmentation, etc
 - Refactor for more configurability (expose spectrogram config etc) and try some hyperparameters
 
 
+### 22.5 (3)
+
+Added harmonic lowering.
+
 ### 22.5 (2)
 
 I made it 2d, let's see what happens.
+
+> Update: It has significantly better scores. I hit >85% F1 score with the current time resolution.
 
 ### 22.5
 
