@@ -2,6 +2,34 @@
 
 In this project I attempt to create an audio-to-MIDI ML model for music transcription, without any prior knowledge on this topic. Beetles are deaf.
 
+## Running training
+
+1. Download the [Maestro V3](https://magenta.withgoogle.com/datasets/maestro) dataset and unzip to a path of your choice.
+
+2. 
+- Set the `MAESTRO_DATASET_PATH` env variable with this path
+
+```
+export MAESTRO_DATASET_PATH=/path/to/maestro-v3
+```
+- Alternatively, write this to a `.env` file in the project root directory
+
+```
+MAESTRO_DATASET_PATH=/path/to/maestro-v3
+```
+
+3. If you don't have it already, [get uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+4. Run `uv sync`.
+
+5. Run 
+```
+uv run train.py --config=configs/baseline_v2.yaml
+```
+
+The results, i.e. model checkpoints and Tensorboard logs will be saved to `experiments/0`.
+
+
 ## Status
 
 ### TODO:
@@ -38,7 +66,7 @@ Ideas:
 - Loosen the time precision constraints, e.g. allow predicting one square early or late if the offset is right
     - Would need some kind of hungarian matching?
 
-> Somehow did both and neither at the same time by blurring each data point and allowing for overlap / "additive synthesis"
+> Somehow did both and neither at the same time by blurring each data point and allowing for overlap / "additive synthesis".
 > This raises the question of how to rebalance the loss, since before we had "mean loss for notes" + "mean loss for blank spaces".
 > In the end, I kept this idea and considered any grid square with nonzero signal to be a note.
 
