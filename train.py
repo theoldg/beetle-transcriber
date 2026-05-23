@@ -3,6 +3,7 @@ from itertools import count
 import shutil
 from dataclasses import dataclass
 
+import torch
 from fire import Fire
 import yaml
 from torch import nn
@@ -24,8 +25,8 @@ class ModelSpec:
 
 
 MODELS = {
-    'v1': ModelSpec(models.UNetV1, models.UNetV1Config),
-    'v2': ModelSpec(models.UNetV2, models.UNetV2Config),
+    "v1": ModelSpec(models.UNetV1, models.UNetV1Config),
+    "v2": ModelSpec(models.UNetV2, models.UNetV2Config),
 }
 
 
@@ -45,11 +46,13 @@ class TrainingConfig(Config):
     gradient_accumulation: int = 1
     train_dataloader: DataLoadingConfig
     valid_dataloader: DataLoadingConfig
+    precision: str = "32-true"
 
 
 def train(
     config: TrainingConfig,
     target_dir: Path,
+    checkpoint_path: Path | None,
 ):
     model_spec = MODELS[config.model.name]
     model_config = model_spec.config_schema(**config.model.config)
@@ -58,7 +61,7 @@ def train(
     metadata = load_metadata()
 
     train_dataloader = make_dataloader(
-        split='train',
+        split="train",
         sample_duration=config.window_length_seconds,
         data_loading_config=config.train_dataloader,
         spectrogram_config=config.spectrogram,
@@ -66,7 +69,7 @@ def train(
         metadata=metadata,
     )
     valid_dataloader = make_dataloader(
-        split='validation',
+        split="validation",
         sample_duration=config.window_length_seconds,
         data_loading_config=config.valid_dataloader,
         spectrogram_config=config.spectrogram,
@@ -91,19 +94,36 @@ def train(
                 monitor="valid/loss",
                 filename="{epoch:02d}-{val_loss:.4f}",
                 save_top_k=1,
-                mode="min"
+                mode="min",
             ),
         ],
         default_root_dir=target_dir,
         accumulate_grad_batches=config.gradient_accumulation,
+        precision=config.precision,
     )
-    trainer.fit(learner, train_dataloader, valid_dataloader)
+    trainer.fit(
+        learner,
+        train_dataloader,
+        valid_dataloader,
+        ckpt_path=checkpoint_path,
+    )
 
 
-DEFAULT_OUT_DIR = Path('experiments')
+DEFAULT_OUT_DIR = Path("experiments")
 
 
-def main(config: str, target_dir: str | None = None):
+def find_latest_checkpoint(target_dir: Path) -> Path:
+    checkpoints = list(
+        (target_dir / "lightning_logs" / "version_0" / "checkpoints").glob("*.ckpt")
+    )
+    if not checkpoints:
+        raise FileNotFoundError(f"No checkpoint found in {target_dir}.")
+    if len(checkpoints) > 1:
+        raise ValueError(f"Multiple checkpoints found in {target_dir}")
+    return checkpoints[0]
+
+
+def main(config: str, target_dir: str | None = None, resume_from: str | None = None):
     config = Path(config)
     if not config.exists():
         raise FileNotFoundError(config)
@@ -119,12 +139,17 @@ def main(config: str, target_dir: str | None = None):
         target_dir = Path(target_dir)
         if target_dir.exists():
             raise FileExistsError(target_dir)
-    
-    target_dir.mkdir(parents=True)
-    shutil.copy(config, target_dir / 'config.yaml')
 
-    train(config_parsed, target_dir)
+    if resume_from is not None:
+        checkpoint_path = find_latest_checkpoint(Path(resume_from))
+    else:
+        checkpoint_path = None
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(config, target_dir / "config.yaml")
+
+    train(config_parsed, target_dir, checkpoint_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     Fire(main)

@@ -159,4 +159,5 @@ def make_dataloader(
         collate_fn=_collate,
         num_workers=data_loading_config.num_workers,
         persistent_workers=True,
+        pin_memory=True,
     )

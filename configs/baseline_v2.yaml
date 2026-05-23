@@ -22,3 +22,5 @@ train_dataloader:
 valid_dataloader:
   samples_per_epoch: 2048
   batch_size: 16
+
+precision: bf16-mixed
