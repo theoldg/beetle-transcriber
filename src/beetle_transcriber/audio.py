@@ -3,7 +3,7 @@ from pathlib import Path
 
 import soundfile as sf
 import torch
-import math
+import numpy as np
 from torch import nn
 from torch import Tensor
 import torchaudio.transforms as T
@@ -18,10 +18,6 @@ class SpectrogramConfig:
     # C0, lowest note on extended pianos.
     f_min: float = 27.5
     n_bins: int = 116
-
-    @property
-    def n_bins(self):
-        return math.ceil(12 * math.log2(self.f_max / self.f_min))
 
 
 def load_audio_segment(
@@ -60,7 +56,7 @@ class AudioPreprocessor(nn.Module):
             fmin=self.config.f_min,
             n_bins=self.config.n_bins,
         )
-        spectrogram = spectrogram.mean(0)
+        spectrogram = np.abs(spectrogram)
         spectrogram -= spectrogram.mean()
         spectrogram /= spectrogram.std()
         return torch.Tensor(spectrogram)
