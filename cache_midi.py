@@ -1,8 +1,13 @@
+"""
+At some point it turned out that loading MIDI files dynamically during training
+is the bottleneck. This script rewrites them to numpy arrays which can then
+be written to disk, memory mapped, and binary searched for much quicker reading.
+"""
+
 from tqdm.auto import tqdm
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 from pathlib import Path
-
 
 from beetle_transcriber.dataset import load_metadata, MAESTRO_PATH
 from beetle_transcriber.midi import MIDI_CACHE_LOCATION, midi_to_array

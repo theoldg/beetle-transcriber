@@ -87,8 +87,13 @@ def midi_to_array(path: Path) -> np.array:
 
 
 def _find_notes(file_name: str, start_time: float, duration: float) -> list[Note]:
+    cached_npy_file = (MIDI_CACHE_LOCATION / file_name).with_suffix('.npy')
+    if not cached_npy_file.exists():
+        raise FileNotFoundError(
+            f'File not found. Did you `uv run cache_midi.py`? {cached_npy_file}'
+        )
     arr = np.load(
-        (MIDI_CACHE_LOCATION / file_name).with_suffix('.npy'),
+        cached_npy_file,
         mmap_mode='r',
     )
     start_i = np.searchsorted(arr[:, 0], start_time)
