@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 import math
+from typing import Self
 
 import mido
 import torch
@@ -11,8 +12,7 @@ import numpy as np
 
 from beetle_transcriber.config import Config
 
-
-MIDI_CACHE_LOCATION = Path(__file__).parents[2] / 'cache' / 'midi'
+MIDI_CACHE_LOCATION = Path(__file__).parents[2] / "cache" / "midi"
 
 
 class MidiPreprocessingConfig(Config):
@@ -38,6 +38,27 @@ class Note:
     # In seconds.
     start_time: float
     end_time: float
+
+    def to_numbers(self) -> np.ndarray:
+        return np.array(
+            [
+                self.start_time,
+                self.end_time,
+                self.note,
+                self.velocity,
+            ],
+            dtype=torch.float32,
+        )
+
+    @classmethod
+    def from_numbers(cls, numbers: np.ndarray) -> Self:
+        start_time, end_time, note, velocity = numbers
+        return cls(
+            start_time=start_time,
+            end_time=end_time,
+            note=int(note),
+            velocity=int(velocity),
+        )
 
 
 def midi_to_array(path: Path) -> np.array:
@@ -79,35 +100,30 @@ def midi_to_array(path: Path) -> np.array:
                     end_time=time,
                 )
             )
-    
-    output = np.zeros((len(notes), 4), dtype=np.float32)
-    for i, note in enumerate(notes):
-        output[i] = [note.start_time, note.end_time, note.note, note.velocity]
-    return output
+
+    return np.stack([n.to_numbers() for n in notes])
 
 
 def _find_notes(file_name: str, start_time: float, duration: float) -> list[Note]:
-    cached_npy_file = (MIDI_CACHE_LOCATION / file_name).with_suffix('.npy')
+    cached_npy_file = (MIDI_CACHE_LOCATION / file_name).with_suffix(".npy")
     if not cached_npy_file.exists():
         raise FileNotFoundError(
-            f'File not found. Did you `uv run cache_midi.py`? {cached_npy_file}'
+            f"File not found. Did you `uv run cache_midi.py`? {cached_npy_file}"
         )
     arr = np.load(
         cached_npy_file,
-        mmap_mode='r',
+        mmap_mode="r",
     )
     start_i = np.searchsorted(arr[:, 0], start_time)
     end_i = np.searchsorted(arr[:, 0], start_time + duration)
-    sub_arr = arr[start_i: end_i]
+    sub_arr = arr[start_i:end_i]
     notes = []
     for row in sub_arr:
-        note_start_time, note_end_time, note, velocity = row
-        notes.append(Note(
-            note=int(note),
-            velocity=int(velocity), 
-            start_time=note_start_time - start_time,
-            end_time=note_end_time - start_time,
-        ))
+        note = Note.from_numbers(row)
+        # Shift to match window start.
+        note.start_time -= start_time
+        note.end_time -= start_time
+        notes.append(note)
     return notes
 
 
