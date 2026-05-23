@@ -280,13 +280,20 @@ class UNetV1(nn.Module):
 
 
 class HarmonicLowering(nn.Module):
+    """
+    Find approximately integer multiples of the fundamental
+    among the log-spaced frequency bins.
+
+    Yay, music theory!
+    """
+
     HARMONICS = {
         0: 0,
-        1: 12,  # Octave
-        2: 12 + 7,  # Octave + fifth
-        3: 24,  # Two octaves
-        4: 24 + 5,  # Two octaves + fourth
-        5: 24 + 5 + 4,  # Two octaves + fourth + major third
+        1: 12,  # 2 ^ (12 / 12) = 2
+        2: 19,  # 2 ^ (19 / 12) ~= 3
+        3: 24,  # 2 ^ (24 / 12) = 4
+        4: 28,  # 2 ^ (28 / 12) ~= 5
+        5: 31,  # 2 ^ (31 / 12) ~= 6
     }
 
     def __init__(
@@ -298,7 +305,10 @@ class HarmonicLowering(nn.Module):
         self.offsets = [self.HARMONICS[i] for i in included_harmonics]
 
     def forward(self, spectrogram: Tensor) -> Tensor:
-        """In: (batch, freq, time). Out: (batch, harmonics, freq, time)."""
+        """
+        In: (batch, freq, time). Out: (batch, harmonics, freq, time).
+        Only makes sense if frequency bins are log-spaced by 2^(1/12) (a musical semitone each).
+        """
         batch_d, freq_d, time_d = spectrogram.shape
         output = torch.zeros(
             *(batch_d, len(self.offsets), freq_d, time_d),
@@ -484,7 +494,7 @@ class UNetV2(nn.Module):
             x = layer(x, skip_input)
 
         x = self.last_up_layer(x, spectrograms)
-        x = x[:, :, :self.num_notes]
+        x = x[:, :, : self.num_notes]
 
         for layer in self.final_layers:
             x = layer(x)
