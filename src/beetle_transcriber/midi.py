@@ -47,7 +47,7 @@ class Note:
                 self.note,
                 self.velocity,
             ],
-            dtype=torch.float32,
+            dtype=np.float32,
         )
 
     @classmethod
