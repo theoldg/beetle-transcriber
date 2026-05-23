@@ -15,6 +15,8 @@ from beetle_transcriber.audio import (
     AudioPreprocessor,
 )
 from beetle_transcriber.midi import MidiPreprocessingConfig, preprocess_midi
+from beetle_transcriber.config import Config
+
 
 MAESTRO_PATH = Path(os.environ["MAESTRO_DATASET_PATH"])
 
@@ -75,6 +77,7 @@ def preprocess_random_segment(
         config=midi_config,
         start_time=start_point,
         duration=duration,
+        time_resolution=audio_preprocessor.time_resolution,
     )
 
     return PreprocessedSample(
@@ -95,7 +98,7 @@ class AudioMidiDataset(Dataset):
     ):
         super().__init__()
         if len(metadata) == 0:
-            raise ValueError('Metadata DataFrame is empty.')
+            raise ValueError("Metadata DataFrame is empty.")
         if spectrogram_config is None:
             spectrogram_config = SpectrogramConfig()
         self.spectrogram_config = spectrogram_config
@@ -139,23 +142,35 @@ def _collate(samples: list[PreprocessedSample]) -> Batch:
     )
 
 
+class DataLoadingConfig(Config):
+    samples_per_epoch: int
+    batch_size: int
+    num_workers: int = 8
+
+
 def make_dataloader(
     split: str,
-    samples_per_epoch: int,
-    batch_size: int,
     sample_duration: float,
-    num_workers: int,
+    data_loading_config: DataLoadingConfig,
     metadata: pd.DataFrame | None = None,
+    spectrogram_config: SpectrogramConfig | None = None,
+    midi_config: MidiPreprocessingConfig | None = None,
 ):
     if metadata is None:
         metadata = load_metadata()
     metadata = metadata.loc[metadata.split == split]
     assert len(metadata) > 0
-    dataset = AudioMidiDataset(metadata, samples_per_epoch, sample_duration)
+    dataset = AudioMidiDataset(
+        metadata=metadata,
+        num_sampled=data_loading_config.samples_per_epoch,
+        sample_duration=sample_duration,
+        spectrogram_config=spectrogram_config,
+        midi_config=midi_config,
+    )
     return DataLoader(
         dataset,
-        batch_size=batch_size,
+        batch_size=data_loading_config.batch_size,
         collate_fn=_collate,
-        num_workers=num_workers,
+        num_workers=data_loading_config.num_workers,
         persistent_workers=True,
     )

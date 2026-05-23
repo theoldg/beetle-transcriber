@@ -1,4 +1,3 @@
-import dataclasses
 from pathlib import Path
 
 import soundfile as sf
@@ -9,9 +8,10 @@ from torch import Tensor
 import torchaudio.transforms as T
 import librosa
 
+from beetle_transcriber.config import Config
 
-@dataclasses.dataclass
-class SpectrogramConfig:
+
+class SpectrogramConfig(Config):
     sample_rate: int = 44_100
     hop_length: int = 2_048
 
@@ -60,3 +60,7 @@ class AudioPreprocessor(nn.Module):
         spectrogram -= spectrogram.mean()
         spectrogram /= spectrogram.std()
         return torch.Tensor(spectrogram)
+
+    @property
+    def time_resolution(self):
+        return self.config.hop_length / self.config.sample_rate

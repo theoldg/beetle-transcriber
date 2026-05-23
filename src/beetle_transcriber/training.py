@@ -7,10 +7,10 @@ import lightning as pl
 
 from beetle_transcriber.midi import Channel
 from beetle_transcriber import dataset
+from beetle_transcriber.config import Config
 
 
-@dataclass
-class LossConfig:
+class LossConfig(Config):
     cross_entropy_weight: float = 10
     empty_weight: float = 6
 
@@ -104,7 +104,7 @@ class Loss(nn.Module):
 
 
 @dataclass
-class LearningConfig:
+class LearningConfig(Config):
     learning_rate: float = 5e-4
 
 

@@ -15,5 +15,5 @@ wheels/
 .env
 *.ipynb
 
-lightning_logs/
 temp_testing/
+experiments/

@@ -9,12 +9,10 @@ import mido
 import torch
 import numpy as np
 
+from beetle_transcriber.config import Config
 
-@dataclass
-class MidiPreprocessingConfig:
-    # In seconds.
-    time_resolution: float
 
+class MidiPreprocessingConfig(Config):
     # Lowest note on the piano (inclusive).
     min_note: int = 21
 
@@ -108,13 +106,7 @@ class Channel:
 NUM_CHANNELS = 4
 
 
-def _normalize_sample(
-    data: torch.Tensor,
-    config: MidiPreprocessingConfig,
-) -> None:
-    # Normalized offset ranges from -1 to 1.
-    data[..., Channel.OFFSET] /= config.time_resolution / 2
-
+def _normalize_sample(data: torch.Tensor) -> None:
     # The maximum velocity is 127.
     data[..., Channel.VELOCITY] /= 128
 
@@ -122,12 +114,13 @@ def _normalize_sample(
 def preprocess_midi(
     path: Path,
     config: MidiPreprocessingConfig,
+    time_resolution: float,
     start_time: float,
     duration: float,
 ) -> torch.Tensor:
     notes = _find_notes(path, start_time=start_time, duration=duration)
 
-    num_time_steps = math.ceil(duration / config.time_resolution)
+    num_time_steps = math.ceil(duration / time_resolution)
     num_notes = config.max_note - config.min_note
 
     data = torch.zeros(
@@ -137,11 +130,11 @@ def preprocess_midi(
 
     r = config.smoothing_radius
     for note, dt in product(notes, range(-r, r + 1)):
-        time_step = dt + round(note.start_time / config.time_resolution)
+        time_step = dt + round(note.start_time / time_resolution)
         if not (0 <= time_step < num_time_steps):
             continue
         note_index = note.note - config.min_note
-        offset = note.start_time - time_step * config.time_resolution
+        offset = note.start_time - time_step * time_resolution
         weight = np.exp(-0.5 * (offset / config.smoothing_std) ** 2)
         data_point = data[time_step, note_index]
         data_point[Channel.CONFIDENCE_SUM] += weight
@@ -150,5 +143,5 @@ def preprocess_midi(
             data_point[Channel.VELOCITY] = note.velocity
             data_point[Channel.OFFSET] = offset
 
-    _normalize_sample(data, config)
+    _normalize_sample(data)
     return data

@@ -6,6 +6,7 @@ from torch import nn, Tensor
 from torchvision.ops.misc import ConvNormActivation
 
 from beetle_transcriber import midi
+from beetle_transcriber.config import Config
 
 
 @dataclass
@@ -111,13 +112,15 @@ class UpLayer(nn.Module):
         return x
 
 
+class UNetV1Config(Config):
+    num_notes: int
+
+
 class UNetV1(nn.Module):
-    def __init__(
-        self,
-        num_notes: int,
-    ):
+    def __init__(self, config: UNetV1Config):
         super().__init__()
-        self.num_notes = num_notes
+        self.config = config
+        self.num_notes = config.num_notes
 
         self.down_layers = nn.ModuleList(
             [
@@ -320,10 +323,14 @@ class HarmonicLowering(nn.Module):
         return output
 
 
+class UNetV2Config(Config):
+    num_notes: int
+
 class UNetV2(nn.Module):
-    def __init__(self, num_notes: int = 88):
+    def __init__(self, config: UNetV2Config):
         super().__init__()
-        self.num_notes = num_notes
+        self.config = config
+        self.num_notes = config.num_notes
 
         self.harmonic_lowering = HarmonicLowering()
 

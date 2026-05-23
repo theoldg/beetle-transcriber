@@ -5,13 +5,16 @@ description = "TODO"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "fire>=0.7.1",
     "jupyter>=1.1.1",
     "librosa>=0.11.0",
     "lightning>=2.6.1",
     "matplotlib>=3.10.9",
     "mido>=1.3.3",
     "pandas>=3.0.3",
+    "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
+    "pyyaml>=6.0.3",
     "soundfile>=0.13.1",
     "tensorboard>=2.20.0",
     "torch>=2.12.0",
