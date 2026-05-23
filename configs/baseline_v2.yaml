@@ -17,10 +17,10 @@ loss: {}
 
 train_dataloader:
   samples_per_epoch: 8192
-  batch_size: 16
+  batch_size: 32
 
 valid_dataloader:
   samples_per_epoch: 2048
-  batch_size: 16
+  batch_size: 32
 
 precision: bf16-mixed

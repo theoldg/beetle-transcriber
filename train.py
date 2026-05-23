@@ -3,7 +3,6 @@ from itertools import count
 import shutil
 from dataclasses import dataclass
 
-import torch
 from fire import Fire
 import yaml
 from torch import nn
