@@ -103,7 +103,6 @@ class Loss(nn.Module):
         )
 
 
-@dataclass
 class LearningConfig(Config):
     learning_rate: float = 5e-4
 
@@ -120,7 +119,7 @@ class Learner(pl.LightningModule):
         self.loss = loss
         self.config = config
 
-    def _calculate_loss(self, batch: dataset.Batch, split: str) -> Loss:
+    def _calculate_loss(self, batch: dataset.Batch, split: str) -> LossOutput:
         model_out = self.model(batch.spectrograms)
         if torch.isnan(model_out).any():
             raise RuntimeError("NaN model outputs.")

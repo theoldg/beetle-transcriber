@@ -13,8 +13,8 @@ from beetle_transcriber.config import Config
 from beetle_transcriber.audio import SpectrogramConfig
 from beetle_transcriber.midi import MidiPreprocessingConfig
 from beetle_transcriber.training import LearningConfig, LossConfig, Loss, Learner
-from beetle_transcriber.dataset import DataLoadingConfig, make_dataloader
-from beetle_transcriber import model
+from beetle_transcriber.dataset import DataLoadingConfig, make_dataloader, load_metadata
+from beetle_transcriber import models
 
 
 @dataclass
@@ -24,8 +24,8 @@ class ModelSpec:
 
 
 MODELS = {
-    'v1': ModelSpec(model.UNetV1, model.UNetV1Config),
-    'v2': ModelSpec(model.UNetV2, model.UNetV2Config),
+    'v1': ModelSpec(models.UNetV1, models.UNetV1Config),
+    'v2': ModelSpec(models.UNetV2, models.UNetV2Config),
 }
 
 
@@ -42,7 +42,7 @@ class TrainingConfig(Config):
     midi: MidiPreprocessingConfig
     learning: LearningConfig
     loss: LossConfig
-    gradient_accumulation: int = 8
+    gradient_accumulation: int = 1
     train_dataloader: DataLoadingConfig
     valid_dataloader: DataLoadingConfig
 
@@ -55,12 +55,15 @@ def train(
     model_config = model_spec.config_schema(**config.model.config)
     model = model_spec.model_cls(model_config)
 
+    metadata = load_metadata()
+
     train_dataloader = make_dataloader(
         split='train',
         sample_duration=config.window_length_seconds,
         data_loading_config=config.train_dataloader,
         spectrogram_config=config.spectrogram,
         midi_config=config.midi,
+        metadata=metadata,
     )
     valid_dataloader = make_dataloader(
         split='validation',
@@ -68,6 +71,7 @@ def train(
         data_loading_config=config.valid_dataloader,
         spectrogram_config=config.spectrogram,
         midi_config=config.midi,
+        metadata=metadata,
     )
     loss = Loss(config.loss)
     learner = Learner(
@@ -85,7 +89,7 @@ def train(
             ),
             ModelCheckpoint(
                 monitor="valid/loss",
-                filename="beetle-unet-{epoch:02d}-{val_loss:.4f}",
+                filename="{epoch:02d}-{val_loss:.4f}",
                 save_top_k=1,
                 mode="min"
             ),

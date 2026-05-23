@@ -106,7 +106,9 @@ class Channel:
 NUM_CHANNELS = 4
 
 
-def _normalize_sample(data: torch.Tensor) -> None:
+def _normalize_sample(data: torch.Tensor, time_resolution: float) -> None:
+    data[..., Channel.OFFSET] /= time_resolution / 2
+
     # The maximum velocity is 127.
     data[..., Channel.VELOCITY] /= 128
 
@@ -143,5 +145,5 @@ def preprocess_midi(
             data_point[Channel.VELOCITY] = note.velocity
             data_point[Channel.OFFSET] = offset
 
-    _normalize_sample(data)
+    _normalize_sample(data, time_resolution=time_resolution)
     return data

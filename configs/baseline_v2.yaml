@@ -5,30 +5,20 @@ model:
 
 window_length_seconds: 2.96
 
-spectrogram:
-  sample_rate: 44100
-  hop_length: 2048
-  f_min: 27.5
-  n_bins: 116
+spectrogram: {}
 
-midi:
-  min_note: 21
-  max_note: 109
-  smoothing_radius: 2
-  smoothing_std: 0.07
+midi: {}
 
-learning:
-  learning_rate: 0.0005
+gradient_accumulation: 4
+learning: 
+  learning_rate: 0.002
 
-loss:
-  empty_weight: 6
+loss: {}
 
 train_dataloader:
-  samples_per_epoch: 8196
+  samples_per_epoch: 8192
   batch_size: 16
-
 
 valid_dataloader:
   samples_per_epoch: 2048
   batch_size: 16
-  

@@ -57,11 +57,7 @@ def preprocess_random_segment(
     assert midi_path.exists()
 
     if midi_config is None:
-        # Match time resolution to spectrogram.
-        time_resolution = (
-            audio_preprocessor.config.hop_length / audio_preprocessor.config.sample_rate
-        )
-        midi_config = MidiPreprocessingConfig(time_resolution)  # Default min/max note.
+        midi_config = MidiPreprocessingConfig()  # Defaults.
 
     start_point = random.random() * (file_info.duration - duration)
     waveform = load_audio_segment(
@@ -110,13 +106,6 @@ class AudioMidiDataset(Dataset):
 
     def __len__(self):
         return self.num_sampled
-
-    def num_notes(self):
-        if self.midi_config is not None:
-            midi_config = self.midi_config
-        else:
-            midi_config = MidiPreprocessingConfig(0)
-        return midi_config.max_note - midi_config.min_note
 
     def __getitem__(self, _) -> PreprocessedSample:
         random_index = np.random.choice(len(self.metadata))
