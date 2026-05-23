@@ -6,8 +6,10 @@ In this project I attempt to create an audio-to-MIDI ML model for music transcri
 
 ### TODO:
 - Add standard stuff: LR scheduler, dropout, augmentation, etc
-- Refactor for more configurability (expose spectrogram config etc) and try some hyperparameters
 
+### 23.5
+
+Refactored for running with YAML configs and optimized MIDI part of dataloader (which, turns out, was way slower than the audio part).
 
 ### 22.5 (3)
 
