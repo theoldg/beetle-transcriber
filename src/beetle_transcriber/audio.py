@@ -7,7 +7,7 @@ import math
 from torch import nn
 from torch import Tensor
 import torchaudio.transforms as T
-from nnAudio.features.cqt import CQT2010v2
+import librosa
 
 
 @dataclasses.dataclass
@@ -17,8 +17,7 @@ class SpectrogramConfig:
 
     # C0, lowest note on extended pianos.
     f_min: float = 27.5
-    # Nyquist freq for 44 100. Used for harmonic lowering.
-    f_max: float = 22_050
+    n_bins: int = 116
 
     @property
     def n_bins(self):
@@ -52,21 +51,16 @@ class AudioPreprocessor(nn.Module):
     def __init__(self, config: SpectrogramConfig):
         super().__init__()
         self.config = config
-        self.cqt_transform = CQT2010v2(
-            sr=config.sample_rate,
-            hop_length=config.hop_length,
-            fmin=config.f_min,
-            fmax=config.f_max,
-            n_bins=config.n_bins,
-            earlydownsample=False,
-            output_format='Magnitude',
-        )
-        self.amplitude_to_db = T.AmplitudeToDB(stype="magnitude")
 
     def forward(self, waveform: Tensor) -> Tensor:
-        spectrogram = self.cqt_transform(waveform)
+        spectrogram = librosa.cqt(
+            y=waveform.numpy(),
+            sr=self.config.sample_rate,
+            hop_length=self.config.hop_length,
+            fmin=self.config.f_min,
+            n_bins=self.config.n_bins,
+        )
         spectrogram = spectrogram.mean(0)
-        spectrogram = self.amplitude_to_db(spectrogram)
         spectrogram -= spectrogram.mean()
         spectrogram /= spectrogram.std()
-        return spectrogram
+        return torch.Tensor(spectrogram)
