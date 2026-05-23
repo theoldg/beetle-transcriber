@@ -46,6 +46,7 @@ class TrainingConfig(Config):
     train_dataloader: DataLoadingConfig
     valid_dataloader: DataLoadingConfig
     precision: str = "32-true"
+    early_stopping_patience: int = -1
 
 
 def train(
@@ -81,21 +82,25 @@ def train(
         loss=loss,
         config=config.learning,
     )
-    trainer = pl.Trainer(
-        callbacks=[
+    callbacks = [
+        ModelCheckpoint(
+            monitor="valid/loss",
+            filename="{epoch:02d}-{val_loss:.4f}",
+            save_top_k=1,
+            mode="min",
+        ),
+    ]
+    if config.early_stopping_patience > 0:
+        callbacks.append(
             EarlyStopping(
                 monitor="valid/loss",
-                patience=15,
+                patience=config.early_stopping_patience,
                 mode="min",
                 verbose=True,
-            ),
-            ModelCheckpoint(
-                monitor="valid/loss",
-                filename="{epoch:02d}-{val_loss:.4f}",
-                save_top_k=1,
-                mode="min",
-            ),
-        ],
+            )
+        )
+    trainer = pl.Trainer(
+        callbacks=callbacks,
         default_root_dir=target_dir,
         accumulate_grad_batches=config.gradient_accumulation,
         precision=config.precision,

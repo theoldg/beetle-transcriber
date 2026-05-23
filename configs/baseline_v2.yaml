@@ -24,3 +24,4 @@ valid_dataloader:
   batch_size: 32
 
 precision: bf16-mixed
+early_stopping_patience: 50
