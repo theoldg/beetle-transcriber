@@ -59,7 +59,7 @@ class ConvLayer(nn.Module):
                 config.expanded_channels,
                 config.out_channels,
                 kernel_size=1,
-                norm_layer=self.NORM if self.config.normalize else torch.nn.Identity,
+                norm_layer=self.NORM if self.config.normalize else None,
                 activation_layer=None,
                 conv_layer=self.CONV,
             )
