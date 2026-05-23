@@ -53,9 +53,6 @@ def preprocess_random_segment(
     audio_path = MAESTRO_PATH / file_info.audio_filename
     assert audio_path.exists()
 
-    midi_path = MAESTRO_PATH / file_info.midi_filename
-    assert midi_path.exists()
-
     if midi_config is None:
         midi_config = MidiPreprocessingConfig()  # Defaults.
 
@@ -69,7 +66,7 @@ def preprocess_random_segment(
     spectrogram = audio_preprocessor(waveform)
 
     preprocessed_midi = preprocess_midi(
-        midi_path,
+        file_info.midi_filename,
         config=midi_config,
         start_time=start_point,
         duration=duration,

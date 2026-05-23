@@ -12,6 +12,9 @@ import numpy as np
 from beetle_transcriber.config import Config
 
 
+MIDI_CACHE_LOCATION = Path(__file__).parents[2] / 'cache' / 'midi'
+
+
 class MidiPreprocessingConfig(Config):
     # Lowest note on the piano (inclusive).
     min_note: int = 21
@@ -37,17 +40,13 @@ class Note:
     end_time: float
 
 
-def _find_notes(
-    path: Path,
-    start_time: float,
-    duration: float,
-) -> list[Note]:
-    file = mido.MidiFile(path)
+def midi_to_array(path: Path) -> np.array:
+    messages = list(mido.MidiFile(path))
 
     note_map = {}
     notes: list[Note] = []
     time = 0
-    for message in file:
+    for message in messages:
         if hasattr(message, "time"):
             time += message.time
         if message.type != "note_on":
@@ -80,19 +79,31 @@ def _find_notes(
                     end_time=time,
                 )
             )
+    
+    output = np.zeros((len(notes), 4), dtype=np.float32)
+    for i, note in enumerate(notes):
+        output[i] = [note.start_time, note.end_time, note.note, note.velocity]
+    return output
 
-    filtered_notes = []
-    for note in notes:
-        if note.start_time < start_time:
-            continue
-        if note.start_time >= start_time + duration:
-            break
-        note.start_time -= start_time
-        note.end_time -= start_time
-        note.end_time = min(note.end_time, duration)
-        filtered_notes.append(note)
 
-    return filtered_notes
+def _find_notes(file_name: str, start_time: float, duration: float) -> list[Note]:
+    arr = np.load(
+        (MIDI_CACHE_LOCATION / file_name).with_suffix('.npy'),
+        mmap_mode='r',
+    )
+    start_i = np.searchsorted(arr[:, 0], start_time)
+    end_i = np.searchsorted(arr[:, 0], start_time + duration)
+    sub_arr = arr[start_i: end_i]
+    notes = []
+    for row in sub_arr:
+        note_start_time, note_end_time, note, velocity = row
+        notes.append(Note(
+            note=int(note),
+            velocity=int(velocity), 
+            start_time=note_start_time - start_time,
+            end_time=note_end_time - start_time,
+        ))
+    return notes
 
 
 class Channel:
@@ -114,13 +125,13 @@ def _normalize_sample(data: torch.Tensor, time_resolution: float) -> None:
 
 
 def preprocess_midi(
-    path: Path,
+    file_name: str,
     config: MidiPreprocessingConfig,
     time_resolution: float,
     start_time: float,
     duration: float,
 ) -> torch.Tensor:
-    notes = _find_notes(path, start_time=start_time, duration=duration)
+    notes = _find_notes(file_name, start_time=start_time, duration=duration)
 
     num_time_steps = math.ceil(duration / time_resolution)
     num_notes = config.max_note - config.min_note
