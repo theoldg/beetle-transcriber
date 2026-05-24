@@ -46,7 +46,8 @@ class TrainingConfig(Config):
     train_dataloader: DataLoadingConfig
     valid_dataloader: DataLoadingConfig
     precision: str = "32-true"
-    early_stopping_patience: int = -1
+    early_stopping_patience: int | None = None
+    max_epochs: int = 1_000
 
 
 def train(
@@ -90,7 +91,7 @@ def train(
             mode="min",
         ),
     ]
-    if config.early_stopping_patience > 0:
+    if config.early_stopping_patience is not None:
         callbacks.append(
             EarlyStopping(
                 monitor="valid/loss",
@@ -104,6 +105,8 @@ def train(
         default_root_dir=target_dir,
         accumulate_grad_batches=config.gradient_accumulation,
         precision=config.precision,
+        max_epochs=config.max_epochs,
+        num_sanity_val_steps=0,  # Nothing sane about any of this.
     )
     trainer.fit(
         learner,

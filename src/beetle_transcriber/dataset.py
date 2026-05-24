@@ -14,9 +14,13 @@ from beetle_transcriber.audio import (
     load_audio_segment,
     AudioPreprocessor,
 )
-from beetle_transcriber.midi import MidiPreprocessingConfig, preprocess_midi
+from beetle_transcriber.midi import (
+    MidiPreprocessingConfig,
+    preprocess_midi,
+    PreprocessedMidi,
+    Note,
+)
 from beetle_transcriber.config import Config
-
 
 MAESTRO_PATH = Path(os.environ["MAESTRO_DATASET_PATH"])
 
@@ -41,7 +45,7 @@ def load_metadata() -> pd.DataFrame:
 class PreprocessedSample:
     duration: float
     spectrogram: Tensor
-    midi_data: Tensor
+    midi: PreprocessedMidi
 
 
 def preprocess_random_segment(
@@ -76,7 +80,7 @@ def preprocess_random_segment(
     return PreprocessedSample(
         duration=duration,
         spectrogram=spectrogram,
-        midi_data=preprocessed_midi,
+        midi=preprocessed_midi,
     )
 
 
@@ -119,12 +123,14 @@ class AudioMidiDataset(Dataset):
 class Batch:
     spectrograms: Tensor
     midi_data: Tensor
+    notes: list[list[Note]]
 
 
 def _collate(samples: list[PreprocessedSample]) -> Batch:
     return Batch(
         spectrograms=torch.stack([sample.spectrogram for sample in samples]),
-        midi_data=torch.stack([sample.midi_data for sample in samples]),
+        midi_data=torch.stack([sample.midi.data for sample in samples]),
+        notes=[sample.midi.notes for sample in samples],
     )
 
 

@@ -1,0 +1,28 @@
+model: 
+  name: v2
+  config:
+    num_notes: 88
+
+window_length_seconds: 2.2
+
+spectrogram: {}
+
+midi: {}
+
+learning: 
+  learning_rate: 0.002
+
+loss: {}
+
+train_dataloader:
+  samples_per_epoch: 4
+  batch_size: 2
+  num_workers: 1
+
+valid_dataloader:
+  samples_per_epoch: 4
+  batch_size: 2
+  num_workers: 1
+
+precision: bf16-mixed
+max_epochs: 1

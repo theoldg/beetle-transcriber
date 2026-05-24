@@ -145,13 +145,19 @@ def _normalize_sample(data: torch.Tensor, time_resolution: float) -> None:
     data[..., Channel.VELOCITY] /= 128
 
 
+@dataclass
+class PreprocessedMidi:
+    data: torch.Tensor
+    notes: list[Note]
+
+
 def preprocess_midi(
     file_name: str,
     config: MidiPreprocessingConfig,
     time_resolution: float,
     start_time: float,
     duration: float,
-) -> torch.Tensor:
+) -> PreprocessedMidi:
     notes = _find_notes(file_name, start_time=start_time, duration=duration)
 
     num_time_steps = math.ceil(duration / time_resolution)
@@ -178,4 +184,4 @@ def preprocess_midi(
             data_point[Channel.OFFSET] = offset
 
     _normalize_sample(data, time_resolution=time_resolution)
-    return data
+    return PreprocessedMidi(data=data, notes=notes)

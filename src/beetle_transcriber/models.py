@@ -474,7 +474,8 @@ class UNetV2(nn.Module):
         divisibility_contraint = 2 ** len(self.up_layers)
         assert time_d % divisibility_contraint == 0, (
             "For this number of layers, the time axis "
-            f"must be divisible by {divisibility_contraint}"
+            f"must be divisible by {divisibility_contraint}. "
+            f"It's currently {time_d}."
         )
 
         # Pad the frequency axis to the nearest power of 2.
