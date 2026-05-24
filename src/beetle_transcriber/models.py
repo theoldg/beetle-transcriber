@@ -126,7 +126,7 @@ class UNetV1(nn.Module):
             [
                 ConvLayer1d(
                     ConvLayerConfig(
-                        input_channels=88,
+                        input_channels=self.num_notes,
                         expanded_channels=256,
                         out_channels=128,
                         kernel=5,
@@ -228,7 +228,7 @@ class UNetV1(nn.Module):
 
         self.last_up_layer = ConvLayer1d(
             ConvLayerConfig(
-                input_channels=216,
+                input_channels=128 + self.num_notes,
                 expanded_channels=512,
                 out_channels=512,
                 kernel=5,
@@ -307,6 +307,10 @@ class HarmonicLowering(nn.Module):
         self.included_harmonics = included_harmonics
         self.offsets = [self.HARMONICS[i] for i in included_harmonics]
 
+    @property
+    def num_harmonics(self):
+        return len(self.included_harmonics)
+
     def forward(self, spectrogram: Tensor) -> Tensor:
         """
         In: (batch, freq, time). Out: (batch, harmonics, freq, time).
@@ -325,6 +329,7 @@ class HarmonicLowering(nn.Module):
 
 class UNetV2Config(Config):
     num_notes: int
+
 
 class UNetV2(nn.Module):
     def __init__(self, config: UNetV2Config):
@@ -440,7 +445,7 @@ class UNetV2(nn.Module):
 
         self.last_up_layer = ConvLayer2d(
             ConvLayerConfig(
-                input_channels=134,
+                input_channels=128 + self.harmonic_lowering.num_harmonics,
                 expanded_channels=129,
                 out_channels=64,
                 kernel=5,
@@ -472,6 +477,7 @@ class UNetV2(nn.Module):
             f"must be divisible by {divisibility_contraint}"
         )
 
+        # Pad the frequency axis to the nearest power of 2.
         freq_d_nearest_pow2 = 2 ** (math.ceil(math.log2(freq_d)))
         spectrograms = torch.concat(
             (
