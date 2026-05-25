@@ -1,115 +1,177 @@
 # Beetle Transcriber
 
-In this project I attempt to create an audio-to-MIDI ML model for music transcription, without any prior knowledge on this topic. Beetles are deaf.
+In this project I attempt to create an audio-to-MIDI transcription model for piano, with near-zero prior knowledge about this problem. Beetles are deaf.
 
-## Running training
+Trained on the [MAESTRO v3](https://magenta.withgoogle.com/datasets/maestro) dataset, the model takes a raw piano recording and outputs a structured prediction of which notes were played, when and at what velocity.
 
-1. Download the [Maestro V3](https://magenta.withgoogle.com/datasets/maestro) dataset and unzip to a path of your choice.
+---
 
-2. 
-- Set the `MAESTRO_DATASET_PATH` env variable with this path
+## Results
 
-```
+Currently, the model only predicts onsets and key press velocity. Decoding back from the continuous predictions to a discrete MIDI file is WIP.
+
+After a few days of iteration, the v2 model (2D UNet with harmonic lowering) reaches **>85% F1 score** at the current time resolution on the MAESTRO validation split.
+
+Here is an example of the input, ground truth onset map and predicted onset map. The shown metrics are for the specific sample.
+
+![Onset map prediction](pictures/1.png)
+
+---
+
+## Architecture
+
+### Overview
+
+The model is a **UNet** with encoder-decoder structure and skip connections, inspired by MobileNet's depthwise-separable convolutions. Two variants are implemented:
+
+- **v1** — 1D UNet. Frequency bins are treated as channels, convolutions run along the time axis only.
+- **v2** — 2D UNet. Operates over both time and frequency jointly.
+
+Both variants output a tensor of shape `(batch, time, notes, channels)` — a structured prediction for every time step and every piano key.
+
+### Harmonic lowering
+
+Since the CQT uses log-spaced frequency bins, the 2nd harmonic is always 12 bins up, the 3rd harmonic is 19 bins up, and so on.
+
+`HarmonicLowering` exploits this by stacking shifted copies of the spectrogram into a multi-channel spectrogram. This gives the model explicit access to each note's harmonic series as aligned channels, without having to learn the relationship from scratch.
+
+### Convolutional blocks
+
+To effectively train locally on my macbook, the models must be lightweight. Both models use the same `ConvLayer` building block: a 3-step expand → depthwise → project pattern (stolen from MobileNetV3 inverted residuals), with BatchNorm and ReLU throughout.
+
+The decoder uses `UpLayer`, which combines a convolution with skip connection concatenation followed by `repeat_interleave` upsampling.
+
+---
+
+## Output format
+
+The model predicts a **4-channel tensor** for every `(time_step, note)` pair:
+
+| Channel | Meaning |
+|---|---|
+| `CONFIDENCE_SUM` | Total smoothed probability mass at this time/note location |
+| `CONFIDENCE_MAX` | Peak confidence (used as the binary note-present signal) |
+| `OFFSET` | Sub-step timing offset of the note onset (normalized) |
+| `VELOCITY` | MIDI velocity (normalized to 0–1) |
+
+A note is considered detected if `CONFIDENCE_MAX >= 0` after sigmoid.
+
+---
+
+## MIDI preprocessing
+
+MIDI files are preprocessed into the 4-channel tensor format described above and cached to disk as `.npy` files for fast random access during training.
+
+**Time resolution** is determined by the spectrogram hop length (e.g. ~50 ms at the default settings). Each note is smeared along the time axis using a Gaussian to prevent pumishing the model too hard for off-by-one errors.
+
+> **Collision note**: if two identical notes start within the same time step, only the later one is kept.
+
+---
+
+## Audio preprocessing
+
+Audio is loaded as mono, resampled to 44,100 Hz, and transformed into a **Constant-Q Transform (CQT)** spectrogram. CQT uses log-spaced frequency bins aligned to musical semitones.
+
+Current spectrogram settings:
+
+| Parameter | Value |
+|---|---|
+| Sample rate | 44,100 Hz |
+| Hop length | 2,048 samples (~46 ms) |
+| Frequency bins | 116 (covering C0 and above) |
+| Min frequency | 27.5 Hz (A0) |
+
+---
+
+## Loss
+
+The loss combines several terms over all `(time, note)` locations:
+
+- **Binary cross-entropy** on `CONFIDENCE_MAX` — the main note detection signal, up-weighted relative to other terms.
+- **L2 regression** on `CONFIDENCE_SUM` — encourages calibrated confidence across nearby time steps.
+- **L1 regression** on `OFFSET` and `VELOCITY` — weighted by ground-truth confidence so these only matter at real note locations.
+
+Empty (no-note) locations are down-weighted relative to note locations to avoid the model collapsing to all-zeros.
+
+---
+
+## Getting started
+
+### 1. Download MAESTRO
+
+Download the [MAESTRO V3](https://magenta.withgoogle.com/datasets/maestro) dataset and unzip it to a path of your choice.
+
+### 2. Set the dataset path
+
+```bash
 export MAESTRO_DATASET_PATH=/path/to/maestro-v3
 ```
-- Alternatively, write this to a `.env` file in the project root directory
+
+Or write it to a `.env` file in the project root:
 
 ```
 MAESTRO_DATASET_PATH=/path/to/maestro-v3
 ```
 
-3. If you don't have it already, [get uv](https://docs.astral.sh/uv/getting-started/installation/).
+### 3. Install dependencies
 
-4. Run `uv sync`.
-
-5. Run 
+```bash
+uv sync
 ```
+
+### 4. Cache the MIDI files
+
+```bash
+uv run cache_midi.py
+```
+
+This preprocesses all MIDI files to `.npy` format and stores them under `cache/midi/`. Only needs to be run once.
+
+### 5. Run training
+
+```bash
 uv run train.py --config=configs/baseline_v2.yaml
 ```
 
-The results, i.e. model checkpoints and Tensorboard logs will be saved to `experiments/0`.
+Checkpoints and TensorBoard logs are saved to `experiments/0/` (auto-incremented).
 
+---
 
-## Status
+## Config
 
-### TODO:
-- Add standard stuff: LR scheduler, dropout, augmentation, etc
+Training is fully config-driven via YAML. See `configs/baseline_v2.yaml` for a working example. 
 
-### 23.5
+---
 
-Refactored for running with YAML configs and optimized MIDI part of dataloader (which, turns out, was way slower than the audio part).
+## Dev log
 
-### 22.5 (3)
+### 23 May — YAML configs + MIDI dataloader optimization
 
-Added harmonic lowering.
+Refactored training to use YAML config files. Profiled the dataloader and found the MIDI preprocessing was the bottleneck (slower than audio loading). Fixed by caching MIDI to `.npy` and using memory-mapped reads with binary search.
 
-### 22.5 (2)
+### 22 May — Harmonic lowering + 2D convolutions
 
-I made it 2d, let's see what happens.
+Switched from 1D to 2D convolutions and added the harmonic lowering module. Results improved significantly: **>85% F1 score**, up from ~50% with the 1D model.
 
-> Update: It has significantly better scores. I hit >85% F1 score with the current time resolution.
+### 21 May — First working model
 
-### 22.5
+The 1D UNet is training and detecting notes, achieving ~50% F1 score. Some key problems identified:
 
-It's doing something! This is the onset map, without any consideration for sub-time-bin offset estimation, MIDI note velocity or note duration (which is apparently a hard problem).
+- Binary piano roll targets are too strict — even small timing errors are penalised heavily.
+- No velocity or sub-step offset prediction.
 
-![diagram](pictures/1.png)
+Solved both by switching to smoothed Gaussian targets with explicit offset and velocity channels, and by rebalancing the loss between empty and non-empty locations.
 
+### Initial setup
 
-### 21.5
+Dataset loading, CQT preprocessing, basic UNet skeleton, Lightning training loop.
 
-It's fitting, but not very well. With the current time resolution I get ~50% ish F1 score (which, for the record, is waay better than random
-but still crap).
+---
 
-Ideas:
-- Reduce the time resolution and allow for multi-note grid squares (somehow)
-- Loosen the time precision constraints, e.g. allow predicting one square early or late if the offset is right
-    - Would need some kind of hungarian matching?
+## TODO
 
-> Somehow did both and neither at the same time by blurring each data point and allowing for overlap / "additive synthesis".
-> This raises the question of how to rebalance the loss, since before we had "mean loss for notes" + "mean loss for blank spaces".
-> In the end, I kept this idea and considered any grid square with nonzero signal to be a note.
-
-
-## Data
-
-We use the [Maestro V3](https://magenta.withgoogle.com/datasets/maestro) dataset.
-
-## MIDI preprocessing
-
-The MIDI is preprocessed into a "ML friendly" format as follows. First, a time resolution is chosen (e.g. 50 ms).
-Then, the file is represented as a 3d float tensor with shape `(num time steps, num notes, channels)`. Each note 
-is written to a given "slot" determined by time and pitch, and has 4 associated channels.
-
-For example, at time resolution 50 ms, a C4 played from `T_start = 10.003` to `T_end = 10.5003` with velocity 57 would 
-be written at index `[200, 60]` as `[1, 0.003, 0.5, 57]` (pre-normalization), because:
-
-- `200` is the time step of the start of the note (50 ms * 200 = 10 s)
-- `60` is the MIDI note ID for C4
-- `1` represents the model confidence that a note has started at this time step. Most time/note locations contain a 0.
-- `0.003` is the offset of the note start within the time step
-- `0.5` is the duration in seconds
-- `57` is the velocity.
-
-These values are then normalized, check the code for details.
-
-> Note: If notes are repeated too fast it results in a collision. In that case only the later note is written to this format.
-
-
-## Audio preprocessing
-
-Audio is preprocessed as a log-mel spectrogram.
-
-- Update: turns out there's some kind of spectrogram with musically aligned frequency bins (obviously), 
-which is called "Contant Q Transform". Switched to that and made results slightly worse. Maybe it's 
-configured wrong?
-
-- Maybe I should write my own (either post-STFT filter banks or even custom STFT to get log-spaced 
-detected frequencies instead of linear).
-
-## Model
-
-A 1d UNet / MobileNet-ish custom job. Mel bins are treated as channels. The output is reshaped from `(..., time, D)`
-into `(..., time, notes, channels)`.
-
-
+- Decoding back to MIDI (at least prototype)
+- LR scheduler, dropout / regularization
+- Data augmentation (pitch shift, time stretch, noise)
+- Note duration prediction (this will require an architecture shift).
+- Inference script + MIDI export
