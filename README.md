@@ -150,17 +150,17 @@ See `configs/baseline_v2.yaml` for a working example, or start in `train.py` to 
 
 ## Dev log
 
-### 23 May — YAML configs + MIDI dataloader optimization
+### 23 May - YAML configs + MIDI dataloader optimization
 
 Refactored training to use YAML config files. Profiled the dataloader and found the MIDI preprocessing was the bottleneck (slower than audio loading). Fixed by caching MIDI to `.npy` and using memory-mapped reads with binary search.
 
 Downloaded the rest of the dataset and achieved ~82% validation F1.
 
-### 22 May — Harmonic lowering + 2D convolutions
+### 22 May - Harmonic lowering + 2D convolutions
 
 Switched from 1D to 2D convolutions and added the harmonic lowering module. Results improved significantly: **>85% F1 score** on 10% of the dataset, up from ~50% with the 1D model.
 
-### 21 May — First training
+### 21 May - First training
 
 The 1D UNet is training and detecting notes, achieving ~50% F1 score. Key problem: binary temporal representation is too strict, even small timing errors are penalised heavily.
 
@@ -175,7 +175,6 @@ CQT preprocessing, basic UNet skeleton, learning how to read MIDI, designing mod
 ## TODO
 
 - Decoding back to MIDI (at least prototype)
-- LR scheduler, dropout / regularization
-- Data augmentation (pitch shift, time stretch, noise)
-- Note duration prediction (this will require an architecture shift).
 - Inference script + MIDI export
+- Standard training improvements: LR scheduler, dropout / regularization, data augmentation (pitch shift, time stretch, noise)
+- Note duration prediction (this will require an architecture shift).
