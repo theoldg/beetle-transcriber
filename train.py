@@ -1,53 +1,19 @@
 from pathlib import Path
 from itertools import count
 import shutil
-from dataclasses import dataclass
 
 from fire import Fire
-import yaml
-from torch import nn
 import lightning as pl
 from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 
-from beetle_transcriber.config import Config
-from beetle_transcriber.audio import SpectrogramConfig
-from beetle_transcriber.midi import MidiPreprocessingConfig
-from beetle_transcriber.training import LearningConfig, LossConfig, Loss, Learner
-from beetle_transcriber.dataset import DataLoadingConfig, make_dataloader, load_metadata
-from beetle_transcriber import models
 
-
-@dataclass
-class ModelSpec:
-    model_cls: nn.Module
-    config_schema: Config
-
-
-MODELS = {
-    "v1": ModelSpec(models.UNetV1, models.UNetV1Config),
-    "v2": ModelSpec(models.UNetV2, models.UNetV2Config),
-}
-
-
-class ModelConfig(Config):
-    name: str
-    config: dict
-
-
-class TrainingConfig(Config):
-    model: ModelConfig
-    num_notes: int = 88
-    window_length_seconds: float = 2.96
-    spectrogram: SpectrogramConfig
-    midi: MidiPreprocessingConfig
-    learning: LearningConfig
-    loss: LossConfig
-    gradient_accumulation: int = 1
-    train_dataloader: DataLoadingConfig
-    valid_dataloader: DataLoadingConfig
-    precision: str = "32-true"
-    early_stopping_patience: int | None = None
-    max_epochs: int = 1_000
+from beetle_transcriber.training import Loss, Learner
+from beetle_transcriber.dataset import make_dataloader, load_metadata
+from beetle_transcriber.experiment import (
+    find_latest_checkpoint,
+    init_model_from_config,
+    TrainingConfig,
+)
 
 
 def train(
@@ -55,10 +21,7 @@ def train(
     target_dir: Path,
     checkpoint_path: Path | None,
 ):
-    model_spec = MODELS[config.model.name]
-    model_config = model_spec.config_schema(**config.model.config)
-    model = model_spec.model_cls(model_config)
-
+    model = init_model_from_config(config.model)
     metadata = load_metadata()
 
     train_dataloader = make_dataloader(
@@ -119,22 +82,11 @@ def train(
 DEFAULT_OUT_DIR = Path("experiments")
 
 
-def find_latest_checkpoint(target_dir: Path) -> Path:
-    checkpoints = list(
-        (target_dir / "lightning_logs" / "version_0" / "checkpoints").glob("*.ckpt")
-    )
-    if not checkpoints:
-        raise FileNotFoundError(f"No checkpoint found in {target_dir}.")
-    if len(checkpoints) > 1:
-        raise ValueError(f"Multiple checkpoints found in {target_dir}")
-    return checkpoints[0]
-
-
 def main(config: str, target_dir: str | None = None, resume_from: str | None = None):
-    config = Path(config)
-    if not config.exists():
-        raise FileNotFoundError(config)
-    config_parsed = TrainingConfig(**yaml.safe_load(config.read_text()))
+    config_path = Path(config)
+    if not config_path.exists():
+        raise FileNotFoundError(config_path)
+    config_parsed = TrainingConfig.load_from_yaml(config_path)
 
     if target_dir is None:
         for i in count():
@@ -153,7 +105,7 @@ def main(config: str, target_dir: str | None = None, resume_from: str | None = N
         checkpoint_path = None
 
     target_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(config, target_dir / "config.yaml")
+    shutil.copy(config_path, target_dir / "config.yaml")
 
     train(config_parsed, target_dir, checkpoint_path)
 
