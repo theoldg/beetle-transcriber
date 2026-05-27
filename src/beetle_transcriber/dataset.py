@@ -42,10 +42,17 @@ def load_metadata() -> pd.DataFrame:
 
 
 @dataclass
-class PreprocessedSample:
+class SampleMetadata:
     duration: float
+    start_time: float
+    file_info: FileInfo
+
+
+@dataclass
+class PreprocessedSample:
     spectrogram: Tensor
     midi: PreprocessedMidi
+    metadata: SampleMetadata
 
 
 def preprocess_random_segment(
@@ -60,10 +67,10 @@ def preprocess_random_segment(
     if midi_config is None:
         midi_config = MidiPreprocessingConfig()  # Defaults.
 
-    start_point = random.random() * (file_info.duration - duration)
+    start_time = random.random() * (file_info.duration - duration)
     waveform = load_audio_segment(
         file_path=audio_path,
-        start_sec=start_point,
+        start_sec=start_time,
         duration_sec=duration,
         samplerate=audio_preprocessor.config.sample_rate,
     )
@@ -72,15 +79,19 @@ def preprocess_random_segment(
     preprocessed_midi = preprocess_midi(
         file_info.midi_filename,
         config=midi_config,
-        start_time=start_point,
+        start_time=start_time,
         duration=duration,
         time_resolution=audio_preprocessor.time_resolution,
     )
 
     return PreprocessedSample(
-        duration=duration,
         spectrogram=spectrogram,
         midi=preprocessed_midi,
+        metadata=SampleMetadata(
+            duration=duration,
+            start_time=start_time,
+            file_info=file_info,
+        )
     )
 
 
@@ -124,6 +135,7 @@ class Batch:
     spectrograms: Tensor
     midi_data: Tensor
     notes: list[list[Note]]
+    metadata: list[SampleMetadata]
 
 
 def _collate(samples: list[PreprocessedSample]) -> Batch:
@@ -131,6 +143,7 @@ def _collate(samples: list[PreprocessedSample]) -> Batch:
         spectrograms=torch.stack([sample.spectrogram for sample in samples]),
         midi_data=torch.stack([sample.midi.data for sample in samples]),
         notes=[sample.midi.notes for sample in samples],
+        metadata=[sample.metadata for sample in samples],
     )
 
 
