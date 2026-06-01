@@ -101,6 +101,7 @@ def midi_to_array(path: Path) -> np.array:
                 )
             )
 
+    notes.sort(key=lambda n: n.start_time)
     return np.stack([n.to_numbers() for n in notes])
 
 

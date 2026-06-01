@@ -80,4 +80,5 @@ def load_model_for_inference(experiment_dir: Path | str) -> nn.Module:
     learner = Learner(model, None, None)  # This is a hack.
     learner.load_state_dict(torch.load(checkpoint_path)["state_dict"])
     learner.eval()
+    learner.requires_grad_(False)
     return learner.model
