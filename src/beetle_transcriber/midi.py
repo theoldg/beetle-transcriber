@@ -5,6 +5,7 @@ from itertools import product
 from pathlib import Path
 import math
 from typing import Self
+from enum import IntEnum
 
 import mido
 import torch
@@ -128,14 +129,14 @@ def _find_notes(file_name: str, start_time: float, duration: float) -> list[Note
     return notes
 
 
-class Channel:
+class Channel(IntEnum):
     CONFIDENCE_SUM = 0
     CONFIDENCE_MAX = 1
     OFFSET = 2
     VELOCITY = 3
 
 
-NUM_CHANNELS = 4
+NUM_CHANNELS = len(Channel)
 
 
 def _normalize_sample(data: torch.Tensor, time_resolution: float) -> None:

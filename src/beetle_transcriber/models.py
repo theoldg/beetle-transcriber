@@ -252,10 +252,10 @@ class UNetV1(nn.Module):
         )
 
     def forward(self, spectrograms: Tensor) -> Tensor:
-        divisibility_contraint = 2 ** len(self.up_layers)
-        assert spectrograms.shape[-1] % divisibility_contraint == 0, (
+        divisibility_constraint = 2 ** len(self.up_layers)
+        assert spectrograms.shape[-1] % divisibility_constraint == 0, (
             "For this number of layers, the time axis "
-            f"must be divisible by {divisibility_contraint}"
+            f"must be divisible by {divisibility_constraint}"
         )
 
         x = spectrograms
@@ -301,7 +301,7 @@ class HarmonicLowering(nn.Module):
 
     def __init__(
         self,
-        included_harmonics: list[int] = [0, 1, 2, 3, 4, 5],
+        included_harmonics: tuple[int, ...] = (0, 1, 2, 3, 4, 5),
     ):
         super().__init__()
         self.included_harmonics = included_harmonics
@@ -343,7 +343,7 @@ class UNetV2(nn.Module):
             [
                 ConvLayer2d(
                     ConvLayerConfig(
-                        input_channels=6,  # Lowered harmonics.
+                        input_channels=self.harmonic_lowering.num_harmonics,
                         expanded_channels=256,
                         out_channels=128,
                         kernel=5,
@@ -471,10 +471,10 @@ class UNetV2(nn.Module):
     def forward(self, spectrograms: Tensor) -> Tensor:
         batch_d, freq_d, time_d = spectrograms.shape
 
-        divisibility_contraint = 2 ** len(self.up_layers)
-        assert time_d % divisibility_contraint == 0, (
+        divisibility_constraint = 2 ** len(self.up_layers)
+        assert time_d % divisibility_constraint == 0, (
             "For this number of layers, the time axis "
-            f"must be divisible by {divisibility_contraint}. "
+            f"must be divisible by {divisibility_constraint}. "
             f"It's currently {time_d}."
         )
 

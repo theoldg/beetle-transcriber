@@ -24,7 +24,7 @@ def main(
     model = load_model_for_inference(experiment_path)
     model = model.to(device)
     notes = windowed_inference(
-        audio_path=wav_path,
+        audio_path=input,
         model=model,
         audio_preprocessor=audio_preprocessor,
         duration=config.window_length_seconds,
@@ -34,7 +34,7 @@ def main(
         device=device,
     )
     dataframe = pd.DataFrame(notes)
-    dataframe.to_csv(target_path, index=False)
+    dataframe.to_csv(output, index=False)
 
 
 if __name__ == "__main__":

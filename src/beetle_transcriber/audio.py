@@ -43,12 +43,11 @@ def load_audio_segment(
     return data
 
 
-class AudioPreprocessor(nn.Module):
+class AudioPreprocessor:
     def __init__(self, config: SpectrogramConfig):
-        super().__init__()
         self.config = config
 
-    def forward(self, waveform: Tensor) -> Tensor:
+    def __call__(self, waveform: Tensor) -> Tensor:
         spectrogram = librosa.cqt(
             y=waveform.numpy(),
             sr=self.config.sample_rate,

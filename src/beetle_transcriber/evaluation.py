@@ -23,9 +23,9 @@ class MatchingResult:
     @classmethod
     def sum(cls, results: list[Self]) -> Self:
         return cls(
-            matches=sum((r.matches for r in results), []),
-            false_positives=sum((r.false_positives for r in results), []),
-            false_negatives=sum((r.false_negatives for r in results), []),
+            matches=[m for r in results for m in r.matches],
+            false_positives=[n for r in results for n in r.false_positives],
+            false_negatives=[n for r in results for n in r.false_negatives],
         )
 
     def apply_tolerance(self, tolerance_ms: float) -> Self:
@@ -58,7 +58,9 @@ class MatchingResult:
     @property
     def f1_score(self):
         denom = self.precision + self.recall
-        return 2 * self.precision * self.recall / max(denom, 1)
+        if denom == 0:
+            return 0
+        return 2 * self.precision * self.recall / denom
 
 
 def _hungarian_match_single_freq(

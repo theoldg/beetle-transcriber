@@ -8,7 +8,6 @@ from torch import nn
 
 from beetle_transcriber.config import Config
 from beetle_transcriber import models
-from beetle_transcriber.config import Config
 from beetle_transcriber.audio import SpectrogramConfig
 from beetle_transcriber.midi import MidiPreprocessingConfig
 from beetle_transcriber.training import (
