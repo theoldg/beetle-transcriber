@@ -133,7 +133,6 @@ class Channel:
     CONFIDENCE_MAX = 1
     OFFSET = 2
     VELOCITY = 3
-    # DURATION = 4
 
 
 NUM_CHANNELS = 4
