@@ -1,26 +1,51 @@
 import torch
-from torch import Tensor
+from torch import Tensor, BoolTensor
 
-from beetle_transcriber.midi import Channel
+from beetle_transcriber.midi import Note, Channel
 
 
-def decode_naive(model_output: Tensor, nms_radius: int = 2, threshold: float = .7):
-    batch, n_time, n_freq, channels = model_output.shape
-    c_max = torch.sigmoid(model_output[..., Channel.CONFIDENCE_MAX])
-    window = 2 * nms_radius + 1
-    # reshape -> (batch * n_freq, 1, n_time) so pool runs along time.
-    c_for_pool = c_max.permute(0, 2, 1).reshape(batch * n_freq, 1, n_time)
-    c_pooled = torch.nn.functional.max_pool1d(
-        c_for_pool,
-        kernel_size=window,
+def _decode_single(
+    model_outputs: Tensor,
+    mask: BoolTensor,
+    time_resolution: float,
+    min_note: int,
+) -> list[Note]:
+    notes = []
+    for time_i, note_i in mask.nonzero():
+        out = model_outputs[time_i, note_i]
+        offset = out[Channel.OFFSET] * time_resolution / 2
+        bin_time = time_resolution * time_i
+        velocity = out[Channel.VELOCITY] * 128
+        notes.append(Note(
+            note=int(note_i + min_note),
+            velocity=int(velocity),
+            start_time=float(bin_time),
+            end_time=float(bin_time + offset),
+        ))
+    return notes
+
+
+def decode(
+    model_output: Tensor,
+    time_resolution: float,
+    min_note: int,
+    radius: int,
+    threshold: float = .7
+) -> list[list[Note]]:
+    confidence_score = torch.sigmoid(model_output[..., Channel.CONFIDENCE_MAX])
+    confidence_pooled = torch.nn.functional.max_pool1d(
+        confidence_score.transpose(1, 2),
+        kernel_size=2 * radius + 1,
         stride=1,
-        padding=nms_radius,
+        padding=radius,
+    ).transpose(1, 2)
+
+    mask = (
+        (confidence_score == confidence_pooled) 
+        & (confidence_score >= threshold)
     )
-    # Reshape back
-    c_pooled = c_pooled.reshape(batch, n_freq, n_time).permute(0, 2, 1)
-    is_local_max = (c_max == c_pooled)
-    is_above_thresh = (c_max >= threshold)
-    
-    note_positions = is_local_max & is_above_thresh
-    ...
-    
+    return [
+        _decode_single(output_single, mask_single, time_resolution, min_note)
+        for output_single, mask_single
+        in zip(model_output, mask)
+    ]

@@ -59,13 +59,10 @@ def preprocess_random_segment(
     file_info: FileInfo,
     duration: float,
     audio_preprocessor: AudioPreprocessor,
-    midi_config: MidiPreprocessingConfig | None = None,
+    midi_config: MidiPreprocessingConfig,
 ) -> PreprocessedSample:
     audio_path = MAESTRO_PATH / file_info.audio_filename
     assert audio_path.exists()
-
-    if midi_config is None:
-        midi_config = MidiPreprocessingConfig()  # Defaults.
 
     start_time = random.random() * (file_info.duration - duration)
     waveform = load_audio_segment(
@@ -109,6 +106,8 @@ class AudioMidiDataset(Dataset):
             raise ValueError("Metadata DataFrame is empty.")
         if spectrogram_config is None:
             spectrogram_config = SpectrogramConfig()
+        if midi_config is None:
+            midi_config = MidiPreprocessingConfig()
         self.spectrogram_config = spectrogram_config
         self.midi_config = midi_config
         self.metadata = metadata
