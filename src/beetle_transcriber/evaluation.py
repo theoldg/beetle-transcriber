@@ -34,7 +34,7 @@ class MatchingResult:
         new_fn = self.false_negatives.copy()
         for match in self.matches:
             time_diff = match.true_note.start_time - match.detected_note.start_time
-            if np.abs(time_diff) * 1000 < tolerance_ms:
+            if np.abs(time_diff) * 1000 <= tolerance_ms:
                 new_matches.append(match)
             else:
                 new_fn.append(match.true_note)
@@ -45,14 +45,14 @@ class MatchingResult:
     def recall(self):
         denom = len(self.matches) + len(self.false_negatives)
         if denom == 0:
-            return float('nan')
+            return float("nan")
         return len(self.matches) / denom
 
     @property
     def precision(self):
         denom = len(self.matches) + len(self.false_positives)
         if denom == 0:
-            return float('nan')
+            return float("nan")
         return len(self.matches) / denom
 
     @property
@@ -66,11 +66,13 @@ class MatchingResult:
 def _hungarian_match_single_freq(
     true_notes: list[Note],
     detected_notes: list[Note],
+    minimum_note_distance: float = 0.05,  # 5 ms
 ) -> MatchingResult:
     true_times = np.array([note.start_time for note in true_notes])
     detected_times = np.array([note.start_time for note in detected_notes])
     # Shape: (n_detected, n_true).
     cost_matrix = np.abs(true_times[np.newaxis] - detected_times[:, np.newaxis])
+    cost_matrix[cost_matrix > minimum_note_distance] = 1e100
     detected_indices = set(range(len(detected_notes)))
     true_indices = set(range(len(true_notes)))
     result = MatchingResult([], [], [])
