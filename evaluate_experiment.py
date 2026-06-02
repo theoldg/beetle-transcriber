@@ -23,7 +23,6 @@ def evaluate_entire_dataset(
     num_workers: int = 10,
 ):
     metadata = load_metadata().query('split == "validation"')
-
     audio_paths = [
         get_maestro_path() / audio_filename
         for audio_filename in metadata.audio_filename
@@ -60,14 +59,15 @@ def evaluate_entire_dataset(
 
 
 def metrics_per_tolerance(result: MatchingResult) -> dict:
-    ret = {}
+    ret = []
     for tolerance in (5, 10, 15, 20, 30, 50):
-      r = result.apply_tolerance(tolerance)
-      ret[tolerance] = {
-        'recall': r.recall,
-        'precision': r.precision,
-        'f1_score': r.f1_score,
-      }
+        r = result.apply_tolerance(tolerance)
+        ret.append({
+            'tolerance': tolerance,
+            'recall': r.recall,
+            'precision': r.precision,
+            'f1_score': r.f1_score,
+        })
     return ret
 
 
@@ -90,9 +90,13 @@ def main(
         threshold=threshold,
         device=device,
     )
-    # return matching_results
-    merged_results = MatchingResult.sum(matching_results)
-    print(pd.DataFrame(metrics_per_tolerance(merged_results)))
+    scores = pd.DataFrame([
+        record
+        for result in matching_results
+        for record in metrics_per_tolerance(result)
+    ])
+    mean_scores = scores.groupby("tolerance").mean()
+    print(mean_scores)
 
 
 if __name__ == "__main__":
