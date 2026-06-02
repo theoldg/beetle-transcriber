@@ -8,15 +8,21 @@ Trained on the [MAESTRO v3](https://magenta.withgoogle.com/datasets/maestro) dat
 
 ## Results
 
-After a few days of iteration, the v2 model (2D UNet with harmonic lowering) reaches **>85% F1 score** at the current time resolution on the MAESTRO validation split.
-
-**Try it yourself.** The model can be used to detect note pitch and onset times: `detect_notes.py` takes a WAV file and writes a CSV file with all the detected notes. See below for details.
+**Try it yourself:** The model can be used to detect note pitch and onset times: `detect_notes.py` takes a WAV file and writes a CSV file with all the detected notes. See below for details.
 
 Currently, the model only predicts onsets and key press velocity. Predicting note length is the planned next step. It seems like [Onsets and Frames](https://magenta.withgoogle.com/onsets-frames) does this via an "activity" channel in the model output, trained to output 1 if a note is ringing.
 
 Here is an example of the input, ground truth onset map and predicted onset map. The shown metrics are for the specific sample, which is of course slightly cherry picked.
 
 ![Onset map prediction](pictures/1.png)
+
+Here are the current scores for onset detection on the entire Maestro validation split:
+
+| Tolerance (ms) | Recall | Precision | F1-Score |
+| :--- | :--- | :--- | :--- |
+| 50 | 89.1% | 91.6% | 90.3% |
+| 20 | 83.2% | 85.4% | 84.2% |
+
 
 ---
 
@@ -109,6 +115,13 @@ Empty (no-note) locations are down-weighted relative to note locations to avoid 
 
 ---
 
+## Configuration
+
+Training is configured via YAML. It is validated with Pydantic, so any config error will show up before training starts.
+See `configs/baseline_v2.yaml` for a working example, or start in `train.py` to understand the schema definition.
+
+---
+
 ## Getting started
 
 ### 1. Get the data
@@ -153,14 +166,11 @@ Checkpoints and TensorBoard logs are saved to `experiments/0/` (auto-incremented
 
 ---
 
-## Config
-
-Training is configured via YAML. It is validated with Pydantic, so any config error will show up before training starts.
-See `configs/baseline_v2.yaml` for a working example, or start in `train.py` to understand the schema definition.
-
----
-
 ## Dev log
+
+### 2 June - Evaluation
+
+Add evaluation script to measure F1 across different tolerace values for entire validation dataset.
 
 ### 1 June - Inference script
 
