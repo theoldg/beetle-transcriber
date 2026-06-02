@@ -22,7 +22,7 @@ def main(
     model = load_model_for_inference(experiment_path)
     model = model.to(device)
     notes = windowed_inference(
-        audio_path=input,
+        audio_paths=[input],
         model=model,
         audio_preprocessor=audio_preprocessor,
         duration=config.window_length_seconds,
@@ -30,7 +30,7 @@ def main(
         nms_radius=config.midi.smoothing_radius,
         threshold=threshold,
         device=device,
-    )
+    )[0]
     dataframe = pd.DataFrame(notes)
     dataframe.to_csv(output, index=False)
 

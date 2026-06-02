@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 from torch import Tensor, BoolTensor
 from torch import nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import soundfile as sf
 from tqdm import tqdm
 
@@ -88,11 +88,15 @@ class WindowedDataset(Dataset):
         self.audio_path = audio_path
         self.audio_preprocessor = audio_preprocessor
         self.duration = duration
+        self.num_windows = self.calculate_num_windows()
 
-    def __len__(self):
+    def calculate_num_windows(self):
         audio_file = sf.SoundFile(self.audio_path)
         file_seconds = len(audio_file) / audio_file.samplerate
         return int((file_seconds - self.duration) / self.hop_size)
+
+    def __len__(self):
+        return self.num_windows
 
     def __getitem__(self, index):
         wave = load_audio_segment(
@@ -104,8 +108,30 @@ class WindowedDataset(Dataset):
         return self.audio_preprocessor(wave)
 
 
+def _assemble_windowed_notes(
+    note_windows: list[list[Note]],
+    duration: float,
+) -> list[Note]:
+    num_windows = len(note_windows)
+    notes = []
+    for i, window_notes in enumerate(note_windows):
+        for note in window_notes:
+            note: Note
+            if ((duration / 4 <= note.start_time) or (i == 0)) and (
+                (note.start_time < duration * 3 / 4) or (i == num_windows - 1)
+            ):
+                offset = i * duration / 2
+                notes.append(Note(
+                    note=note.note,
+                    velocity=note.velocity,
+                    start_time=note.start_time + offset,
+                    end_time=note.end_time + offset,
+                ))
+    return notes
+
+
 def windowed_inference(
-    audio_path: Path,
+    audio_paths: list[Path],
     model: nn.Module,
     audio_preprocessor: AudioPreprocessor,
     duration: float,
@@ -113,23 +139,30 @@ def windowed_inference(
     nms_radius: int,
     threshold: float = 0.7,
     batch_size: int = 16,
+    num_workers: int = 0,
     device: str = "mps",
-) -> list[Note]:
-    dataset = WindowedDataset(
-        audio_path=audio_path,
-        audio_preprocessor=audio_preprocessor,
-        duration=duration,
-    )
+    verbose: bool = True,
+) -> list[list[Note]]:
+    datasets = [
+        WindowedDataset(
+            audio_path=audio_path,
+            audio_preprocessor=audio_preprocessor,
+            duration=duration,
+        )
+        for audio_path in audio_paths
+    ]
+    dataset = ConcatDataset(datasets)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
+        num_workers=num_workers,
     )
-    notes_windowed = []
+    note_windows = []
     with torch.inference_mode():
-        for spec in tqdm(dataloader):
+        for spec in tqdm(dataloader, disable=not verbose):
             spec = spec.to(device)
             output = model(spec).cpu()
-            notes_windowed.extend(
+            note_windows.extend(
                 decode_notes(
                     output,
                     time_resolution=audio_preprocessor.time_resolution,
@@ -138,16 +171,16 @@ def windowed_inference(
                     radius=nms_radius,
                 )
             )
-    num_windows = len(notes_windowed)
-    notes = []
-    for i, window_notes in enumerate(notes_windowed):
-        for note in window_notes:
-            note: Note
-            if ((duration / 4 < note.start_time) or (i == 0)) and (
-                (note.start_time < duration * 3 / 4) or (i == num_windows - 1)
-            ):
-                offset = i * duration / 2
-                note.start_time += offset
-                note.end_time += offset
-                notes.append(note)
-    return notes
+    window_index = 0
+    note_lists = []
+    for dataset in datasets:
+        note_lists.append(
+            _assemble_windowed_notes(
+                note_windows[window_index : window_index + len(dataset)],
+                duration=duration,
+            )
+        )
+        window_index += len(dataset)
+    assert window_index == len(note_windows)
+
+    return note_lists
