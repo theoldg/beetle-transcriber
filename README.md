@@ -1,6 +1,6 @@
 # Beetle Transcriber
 
-In this project I attempt to create an audio-to-MIDI transcription model for piano, with near-zero prior knowledge about this problem. Beetles are deaf.
+In this project I attempt to create an audio-to-MIDI transcription model for piano, with general Audio ML experience but near-zero prior knowledge about transcription specifically. Beetles are deaf.
 
 Trained on the [MAESTRO v3](https://magenta.withgoogle.com/datasets/maestro) dataset, the model takes a raw piano recording and outputs a structured prediction of which notes were played, when and at what velocity.
 
@@ -192,7 +192,8 @@ CQT preprocessing, basic UNet skeleton, learning how to read MIDI, designing mod
 
 ## TODO
 
-- Decoding back to MIDI (at least prototype)
-- Inference script + MIDI export
+- MIDI export instead of CSV
+- improve decoding (e.g. aggregate across windows)
 - Standard training improvements: LR scheduler, dropout / regularization, data augmentation (pitch shift, time stretch, noise)
 - Note duration prediction (this will require an architecture shift).
+- Try intermediate harmonic lowering for deeper layers
