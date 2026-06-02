@@ -106,7 +106,7 @@ def midi_to_array(path: Path) -> np.array:
     return np.stack([n.to_numbers() for n in notes])
 
 
-def _find_notes(file_name: str, start_time: float, duration: float) -> list[Note]:
+def find_notes(file_name: str, start_time: float, duration: float) -> list[Note]:
     cached_npy_file = (MIDI_CACHE_LOCATION / file_name).with_suffix(".npy")
     if not cached_npy_file.exists():
         raise FileNotFoundError(
@@ -159,7 +159,7 @@ def preprocess_midi(
     start_time: float,
     duration: float,
 ) -> PreprocessedMidi:
-    notes = _find_notes(file_name, start_time=start_time, duration=duration)
+    notes = find_notes(file_name, start_time=start_time, duration=duration)
 
     num_time_steps = math.ceil(duration / time_resolution)
     num_notes = config.max_note - config.min_note
