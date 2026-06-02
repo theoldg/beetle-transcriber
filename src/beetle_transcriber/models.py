@@ -516,3 +516,27 @@ class UNetV2(nn.Module):
         x = torch.transpose(x, 1, 3)
 
         return x
+
+
+@dataclass
+class ModelSpec:
+    model_cls: type[nn.Module]
+    config_type: type[Config]
+
+
+MODELS = {
+    "v1": ModelSpec(UNetV1, UNetV1Config),
+    "v2": ModelSpec(UNetV2, UNetV2Config),
+}
+
+
+class ModelConfig(Config):
+    name: str
+    config: dict
+
+
+def init_model_from_config(model_config: ModelConfig) -> nn.Module:
+    model_spec = MODELS[model_config.name]
+    model_config = model_spec.config_type(**model_config.config)
+    model = model_spec.model_cls(model_config)
+    return model

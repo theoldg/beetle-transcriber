@@ -3,10 +3,8 @@ from pathlib import Path
 from fire import Fire
 import pandas as pd
 
-from beetle_transcriber.experiment import (
-    TrainingConfig,
-    load_model_for_inference,
-)
+from beetle_transcriber.experiment import ExperimentConfig
+from beetle_transcriber.inference import load_model_for_inference
 from beetle_transcriber.audio import AudioPreprocessor
 from beetle_transcriber.inference import windowed_inference
 
@@ -19,7 +17,7 @@ def main(
     threshold: float = 0.7,
 ):
     experiment_path = Path(experiment_path)
-    config = TrainingConfig.load_from_yaml(experiment_path / "config.yaml")
+    config = ExperimentConfig.load_from_yaml(experiment_path / "config.yaml")
     audio_preprocessor = AudioPreprocessor(config.spectrogram)
     model = load_model_for_inference(experiment_path)
     model = model.to(device)

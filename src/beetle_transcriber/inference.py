@@ -10,9 +10,23 @@ from tqdm import tqdm
 from beetle_transcriber.audio import load_audio_segment
 from beetle_transcriber.midi import Note, Channel
 from beetle_transcriber.audio import AudioPreprocessor
-
+from beetle_transcriber import models
+from beetle_transcriber.training import Learner
+from beetle_transcriber.experiment import ExperimentConfig, find_latest_checkpoint
 
 HARDCODED_NOTE_LENGTH = 0.010  # 10 ms
+
+
+def load_model_for_inference(experiment_dir: Path | str) -> nn.Module:
+    experiment_dir = Path(experiment_dir)
+    config = ExperimentConfig.load_from_yaml(experiment_dir / "config.yaml")
+    model = models.init_model_from_config(config.model)
+    checkpoint_path = find_latest_checkpoint(experiment_dir)
+    learner = Learner(model, None, None)  # This is a hack.
+    learner.load_state_dict(torch.load(checkpoint_path)["state_dict"])
+    learner.eval()
+    learner.requires_grad_(False)
+    return learner.model
 
 
 def _decode_single(
