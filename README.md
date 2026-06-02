@@ -12,7 +12,7 @@ After a few days of iteration, the v2 model (2D UNet with harmonic lowering) rea
 
 **Try it yourself.** The model can be used to detect note pitch and onset times: `detect_notes.py` takes a WAV file and writes a CSV file with all the detected notes. See below for details.
 
-Currently, the model only predicts onsets and key press velocity. Decoding back from the continuous predictions to a discrete MIDI file is WIP. Predicting note length is a step up in difficulty, which I will handle as soon as I get >90% F1 score on offset detection. It seems like [Onsets and Frames](https://magenta.withgoogle.com/onsets-frames) does this via an "activity" channel in the model output, trained to output 1 if a note is ringing.
+Currently, the model only predicts onsets and key press velocity. Predicting note length is the planned next step. It seems like [Onsets and Frames](https://magenta.withgoogle.com/onsets-frames) does this via an "activity" channel in the model output, trained to output 1 if a note is ringing.
 
 Here is an example of the input, ground truth onset map and predicted onset map. The shown metrics are for the specific sample, which is of course slightly cherry picked.
 
