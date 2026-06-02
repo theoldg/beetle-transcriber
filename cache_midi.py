@@ -9,12 +9,12 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 from pathlib import Path
 
-from beetle_transcriber.dataset import load_metadata, MAESTRO_PATH
+from beetle_transcriber.dataset import load_metadata, get_maestro_path
 from beetle_transcriber.midi import MIDI_CACHE_LOCATION, midi_to_array
 
 
 def load_and_cache(name: str) -> None:
-    f = MAESTRO_PATH / name
+    f = get_maestro_path() / name
     arr = midi_to_array(f)
     target_path: Path = (MIDI_CACHE_LOCATION / name).with_suffix(".npy")
     target_path.parent.mkdir(parents=True, exist_ok=True)

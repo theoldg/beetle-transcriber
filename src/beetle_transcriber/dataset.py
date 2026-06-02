@@ -2,7 +2,9 @@ from pathlib import Path
 import os
 from dataclasses import dataclass
 import random
+from functools import cache
 
+from dotenv import load_dotenv
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -22,7 +24,20 @@ from beetle_transcriber.midi import (
 )
 from beetle_transcriber.config import Config
 
-MAESTRO_PATH = Path(os.environ["MAESTRO_DATASET_PATH"])
+
+@cache
+def get_maestro_path():
+    load_dotenv()
+    path_str = os.getenv("MAESTRO_DATASET_PATH")
+    if path_str is None:
+        raise RuntimeError(
+            "To load audio/midi files for training, "
+            "please set the `MAESTRO_DATASET_PATH` env variable."
+        )
+    path = Path(path_str)
+    if not path.exists():
+        raise FileNotFoundError(f"Maestro dataset not found at {path}")
+    return path
 
 
 @dataclass
@@ -38,7 +53,7 @@ class FileInfo:
 
 def load_metadata() -> pd.DataFrame:
     """The rows of the DataFrame have the structure of FileInfo."""
-    return pd.read_csv(MAESTRO_PATH / "maestro-v3.0.0.csv")
+    return pd.read_csv(get_maestro_path() / "maestro-v3.0.0.csv")
 
 
 @dataclass
@@ -61,7 +76,7 @@ def preprocess_random_segment(
     audio_preprocessor: AudioPreprocessor,
     midi_config: MidiPreprocessingConfig,
 ) -> PreprocessedSample:
-    audio_path = MAESTRO_PATH / file_info.audio_filename
+    audio_path = get_maestro_path() / file_info.audio_filename
     assert audio_path.exists()
 
     start_time = random.random() * (file_info.duration - duration)
@@ -88,7 +103,7 @@ def preprocess_random_segment(
             duration=duration,
             start_time=start_time,
             file_info=file_info,
-        )
+        ),
     )
 
 
