@@ -1,0 +1,27 @@
+model: 
+  name: v3
+  config:
+    num_notes: 88
+
+window_length_seconds: 2.96
+
+spectrogram: {}
+
+midi: {}
+
+gradient_accumulation: 4
+learning: 
+  learning_rate: 0.002
+
+loss: {}
+
+train_dataloader:
+  samples_per_epoch: 8192
+  batch_size: 32
+
+valid_dataloader:
+  samples_per_epoch: 2048
+  batch_size: 32
+
+precision: bf16-mixed
+early_stopping_patience: 200
